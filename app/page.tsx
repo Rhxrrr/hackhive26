@@ -678,7 +678,7 @@ export default function QADashboard() {
               />
               {file && (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none"
+                  className="absolute top-0 bottom-0 w-px bg-white pointer-events-none"
                   style={{ left: `${(currentTime / (totalDuration || 1)) * 100}%` }}
                 />
               )}
@@ -690,7 +690,7 @@ export default function QADashboard() {
                 return (
                   <div
                     key={`uncertain-${i}`}
-                    className="absolute top-full mt-0.5 -translate-x-1/2 z-10 cursor-pointer hover:scale-125 transition-transform"
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 cursor-pointer hover:scale-125 transition-transform"
                     style={{
                       left: `${(timeInSeconds / (totalDuration || 1)) * 100}%`,
                     }}

@@ -17,6 +17,7 @@ import {
   VolumeX,
   ChevronDown,
   HelpCircle,
+  BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import Link from "next/link";
 
 const transcript = [
   {
@@ -528,6 +530,12 @@ export default function QADashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard" className="gap-2">
+                <BarChart2 className="w-4 h-4" />
+                Agent Performance
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={downloadTranscript}>
               <Download className="w-4 h-4 mr-2" />
               Download Transcript
@@ -1179,10 +1187,11 @@ export default function QADashboard() {
           </div>
         </div>
         {file &&
+          mediaObjectUrl &&
           (file.type.startsWith("video/") ? (
             <video
               ref={mediaRef as React.RefObject<HTMLVideoElement>}
-              src={mediaObjectUrl ?? ""}
+              src={mediaObjectUrl}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onLoadedMetadata={(e) =>
@@ -1196,7 +1205,7 @@ export default function QADashboard() {
           ) : (
             <audio
               ref={mediaRef as React.RefObject<HTMLAudioElement>}
-              src={mediaObjectUrl ?? ""}
+              src={mediaObjectUrl}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onLoadedMetadata={(e) =>

@@ -524,64 +524,7 @@ export default function QADashboard() {
                 onChange={(e) => setCurrentTime(Number(e.target.value))}
                 className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
               />
-              {/* Markers on timeline */}
-              {goodMoments.map((m, i) => {
-                const timeInSeconds =
-                  parseInt(m.time.split(":")[0]) * 60 +
-                  parseInt(m.time.split(":")[1]);
-                return (
-                  <div
-                    key={`good-${i}`}
-                    className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-emerald-500 rounded-full cursor-pointer hover:scale-150 transition-transform"
-                    style={{
-                      left: `${(timeInSeconds / totalDuration) * 100}%`,
-                    }}
-                    onClick={() => {
-                      setCurrentTime(timeInSeconds);
-                      scrollToLine(m.lineId);
-                    }}
-                    title={m.message}
-                  />
-                );
-              })}
-              {badMoments.map((m, i) => {
-                const timeInSeconds =
-                  parseInt(m.time.split(":")[0]) * 60 +
-                  parseInt(m.time.split(":")[1]);
-                return (
-                  <div
-                    key={`bad-${i}`}
-                    className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full cursor-pointer hover:scale-150 transition-transform"
-                    style={{
-                      left: `${(timeInSeconds / totalDuration) * 100}%`,
-                    }}
-                    onClick={() => {
-                      setCurrentTime(timeInSeconds);
-                      scrollToLine(m.lineId);
-                    }}
-                    title={m.message}
-                  />
-                );
-              })}
-              {needsImprovementMoments.map((m, i) => {
-                const timeInSeconds =
-                  parseInt(m.time.split(":")[0]) * 60 +
-                  parseInt(m.time.split(":")[1]);
-                return (
-                  <div
-                    key={`improve-${i}`}
-                    className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-amber-500 rounded-full cursor-pointer hover:scale-150 transition-transform"
-                    style={{
-                      left: `${(timeInSeconds / totalDuration) * 100}%`,
-                    }}
-                    onClick={() => {
-                      setCurrentTime(timeInSeconds);
-                      scrollToLine(m.lineId);
-                    }}
-                    title={m.message}
-                  />
-                );
-              })}
+              {/* Markers on timeline - purple (uncertain) only */}
               {uncertainMoments.map((m, i) => {
                 const timeInSeconds =
                   parseInt(m.time.split(":")[0]) * 60 +

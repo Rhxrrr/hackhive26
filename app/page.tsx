@@ -40,6 +40,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 const transcript = [
   {
@@ -351,10 +352,10 @@ export default function QADashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="h-screen flex flex-col overflow-hidden bg-background p-6">
+      <div className="max-w-7xl mx-auto flex flex-col gap-6 flex-1 min-h-0 w-full">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between shrink-0">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">
               Voice Call QA Review
@@ -492,7 +493,7 @@ export default function QADashboard() {
         </div>
 
         {/* Audio Bar */}
-        <div className="bg-card rounded-xl border border-border p-4">
+        <div className="bg-card rounded-xl border border-border p-4 shrink-0">
           <div className="flex items-center gap-4">
             <Button
               variant="outline"
@@ -604,10 +605,10 @@ export default function QADashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
           {/* Transcript - iMessage Style */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-card rounded-xl border border-border p-4 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-sm font-medium text-muted-foreground">
                 Call Transcript
               </h2>
@@ -622,7 +623,7 @@ export default function QADashboard() {
                 />
               </div>
             </div>
-            <div className="h-[500px] overflow-y-auto space-y-3 pr-2">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
               {filteredTranscript.map((line) => {
                 const isGood = goodMoments.some((m) => m.lineId === line.id);
                 const isBad = badMoments.some((m) => m.lineId === line.id);
@@ -689,14 +690,17 @@ export default function QADashboard() {
           </div>
 
           {/* Analysis Columns */}
-          <div className="grid grid-cols-1 gap-4 h-[540px]">
+          <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
             {/* Good */}
             <Collapsible
               open={goodOpen}
               onOpenChange={setGoodOpen}
-              className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl overflow-hidden flex flex-col"
+              className={cn(
+                "bg-emerald-500/10 border border-emerald-500/20 rounded-xl overflow-hidden flex flex-col",
+                goodOpen ? "flex-1 min-h-0" : "shrink-0"
+              )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-emerald-500/5 transition-colors">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-emerald-500/5 transition-colors shrink-0">
                 <ChevronDown
                   className={`w-4 h-4 text-emerald-500 transition-transform ${goodOpen ? "" : "-rotate-90"}`}
                 />
@@ -706,7 +710,7 @@ export default function QADashboard() {
                   {goodMoments.length} moments
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-4 pb-4 overflow-y-auto">
+              <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {goodMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
@@ -753,9 +757,12 @@ export default function QADashboard() {
             <Collapsible
               open={badOpen}
               onOpenChange={setBadOpen}
-              className="bg-red-500/10 border border-red-500/20 rounded-xl overflow-hidden flex flex-col"
+              className={cn(
+                "bg-red-500/10 border border-red-500/20 rounded-xl overflow-hidden flex flex-col",
+                badOpen ? "flex-1 min-h-0" : "shrink-0"
+              )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-red-500/5 transition-colors">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-red-500/5 transition-colors shrink-0">
                 <ChevronDown
                   className={`w-4 h-4 text-red-500 transition-transform ${badOpen ? "" : "-rotate-90"}`}
                 />
@@ -765,7 +772,7 @@ export default function QADashboard() {
                   {badMoments.length} moments
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-4 pb-4 overflow-y-auto max-h-32">
+              <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {badMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
@@ -812,9 +819,12 @@ export default function QADashboard() {
             <Collapsible
               open={improvementOpen}
               onOpenChange={setImprovementOpen}
-              className="bg-amber-500/10 border border-amber-500/20 rounded-xl overflow-hidden flex flex-col"
+              className={cn(
+                "bg-amber-500/10 border border-amber-500/20 rounded-xl overflow-hidden flex flex-col",
+                improvementOpen ? "flex-1 min-h-0" : "shrink-0"
+              )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-amber-500/5 transition-colors">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-amber-500/5 transition-colors shrink-0">
                 <ChevronDown
                   className={`w-4 h-4 text-amber-500 transition-transform ${improvementOpen ? "" : "-rotate-90"}`}
                 />
@@ -826,7 +836,7 @@ export default function QADashboard() {
                   {needsImprovementMoments.length} moments
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-4 pb-4 overflow-y-auto max-h-32">
+              <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {needsImprovementMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
@@ -873,9 +883,12 @@ export default function QADashboard() {
             <Collapsible
               open={uncertainOpen}
               onOpenChange={setUncertainOpen}
-              className="bg-purple-500/10 border border-purple-500/20 rounded-xl overflow-hidden flex flex-col"
+              className={cn(
+                "bg-purple-500/10 border border-purple-500/20 rounded-xl overflow-hidden flex flex-col",
+                uncertainOpen ? "flex-1 min-h-0" : "shrink-0"
+              )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-purple-500/5 transition-colors">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-purple-500/5 transition-colors shrink-0">
                 <ChevronDown
                   className={`w-4 h-4 text-purple-500 transition-transform ${uncertainOpen ? "" : "-rotate-90"}`}
                 />
@@ -891,7 +904,7 @@ export default function QADashboard() {
                   {uncertainMoments.length} moments
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-4 pb-4 overflow-y-auto max-h-32">
+              <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {uncertainMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">

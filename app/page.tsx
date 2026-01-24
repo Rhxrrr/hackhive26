@@ -311,6 +311,7 @@ export default function QADashboard() {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const [waveformData, setWaveformData] = useState<number[]>([]);
+  const [mediaObjectUrl, setMediaObjectUrl] = useState<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -318,6 +319,9 @@ export default function QADashboard() {
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
       setFile(selectedFile);
       setIsLoading(true);
+      setHighlightedTimePosition(null);
+      setHighlightedMomentType(null);
+      setHighlightedLine(null);
       loadTimeoutRef.current = setTimeout(() => {
         setIsLoading(false);
         loadTimeoutRef.current = null;
@@ -332,15 +336,21 @@ export default function QADashboard() {
     };
   }, []);
 
-  // Set media source when file changes
+  // Set media source when file changes (use object URL in state so video/audio get src via prop; avoids ref timing)
   useEffect(() => {
-    if (!file || !mediaRef.current) return;
+    if (!file) {
+      setMediaObjectUrl(null);
+      setCurrentTime(0);
+      setTotalDuration(1);
+      return;
+    }
     const url = URL.createObjectURL(file);
-    mediaRef.current.src = url;
+    setMediaObjectUrl(url);
     setCurrentTime(0);
     setTotalDuration(1);
     return () => {
       URL.revokeObjectURL(url);
+      setMediaObjectUrl(null);
       if (mediaRef.current) {
         mediaRef.current.pause();
         mediaRef.current.removeAttribute("src");
@@ -460,7 +470,7 @@ export default function QADashboard() {
             : defaultUnplayed;
       ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
     });
-  }, [waveformData, currentTime, totalDuration, highlightedMomentType, highlightedTimePosition]);
+  }, [waveformData, currentTime, totalDuration, highlightedMomentType, highlightedTimePosition, isLoading]);
 
   const parseTimeToSeconds = (time: string) => {
     const parts = time.split(":");
@@ -1162,6 +1172,7 @@ export default function QADashboard() {
           (file.type.startsWith("video/") ? (
             <video
               ref={mediaRef as React.RefObject<HTMLVideoElement>}
+              src={mediaObjectUrl ?? ""}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onLoadedMetadata={(e) =>
@@ -1175,6 +1186,7 @@ export default function QADashboard() {
           ) : (
             <audio
               ref={mediaRef as React.RefObject<HTMLAudioElement>}
+              src={mediaObjectUrl ?? ""}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onLoadedMetadata={(e) =>

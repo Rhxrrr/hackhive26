@@ -44,6 +44,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
@@ -325,6 +326,7 @@ export default function QADashboard() {
   const [noteDialogLineId, setNoteDialogLineId] = useState<number | null>(null);
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(null);
   const [editingMessageDraft, setEditingMessageDraft] = useState("");
+  const [deletedLineIds, setDeletedLineIds] = useState<number[]>([]);
 
   const parseTimeToSeconds = (time: string) => {
     const parts = time.split(":");
@@ -363,6 +365,18 @@ export default function QADashboard() {
     else if (to === "improvement")
       setMomentsImprovement((p) => [...p, moment].sort(sortByTime));
     else setMomentsUncertain((p) => [...p, moment].sort(sortByTime));
+  };
+
+  const deleteMoment = (moment: Moment, from: MomentCategory) => {
+    if (from === "good")
+      setMomentsGood((p) => p.filter((m) => !(m.lineId === moment.lineId && m.rubricSection === moment.rubricSection)));
+    else if (from === "bad")
+      setMomentsBad((p) => p.filter((m) => !(m.lineId === moment.lineId && m.rubricSection === moment.rubricSection)));
+    else if (from === "improvement")
+      setMomentsImprovement((p) => p.filter((m) => !(m.lineId === moment.lineId && m.rubricSection === moment.rubricSection)));
+    else
+      setMomentsUncertain((p) => p.filter((m) => !(m.lineId === moment.lineId && m.rubricSection === moment.rubricSection)));
+    setDeletedLineIds((prev) => (prev.includes(moment.lineId) ? prev : [...prev, moment.lineId]));
   };
 
   const updateMomentMessage = (cat: MomentCategory, index: number, newMessage: string) => {
@@ -1095,6 +1109,7 @@ export default function QADashboard() {
                   (m) => m.lineId === line.id,
                 );
                 const isAgent = line.speaker === "agent";
+                const isDeleted = deletedLineIds.includes(line.id);
 
                 return (
                   <div
@@ -1107,17 +1122,19 @@ export default function QADashboard() {
                     >
                       <div
                         className={`px-4 py-2.5 rounded-2xl text-sm transition-all duration-300 ${
-                          isAgent
-                            ? isGood
-                              ? "bg-emerald-500/20 text-emerald-100 border border-emerald-500/30"
-                              : isBad
-                                ? "bg-red-500/20 text-red-100 border border-red-500/30"
-                                : isImprovement
-                                  ? "bg-yellow-500/25 text-yellow-100 border border-yellow-500/40"
-                                  : "bg-secondary text-foreground"
-                            : isUncertain
-                              ? "bg-purple-500/20 text-purple-100 border border-purple-500/30"
-                              : "bg-blue-600 text-white"
+                          isDeleted
+                            ? "bg-muted/60 text-muted-foreground border border-border"
+                            : isAgent
+                              ? isGood
+                                ? "bg-emerald-500/20 text-emerald-100 border border-emerald-500/30"
+                                : isBad
+                                  ? "bg-red-500/20 text-red-100 border border-red-500/30"
+                                  : isImprovement
+                                    ? "bg-amber-500/20 text-amber-100 border border-amber-500/30"
+                                    : "bg-secondary text-foreground"
+                              : isUncertain
+                                ? "bg-purple-500/20 text-purple-100 border border-purple-500/30"
+                                : "bg-blue-600 text-white"
                         } ${isAgent ? "rounded-bl-md" : "rounded-br-md"} ${
                           highlightedLine === line.id
                             ? "shadow-[inset_0_0_0_2px_rgba(251,191,36,0.5)]"
@@ -1132,16 +1149,16 @@ export default function QADashboard() {
                         <span className="text-[10px] text-muted-foreground">
                           {line.time}
                         </span>
-                        {isGood && (
+                        {!isDeleted && isGood && (
                           <ArrowUp className="w-3 h-3 text-emerald-500" />
                         )}
-                        {isBad && (
+                        {!isDeleted && isBad && (
                           <ArrowDown className="w-3 h-3 text-red-500" />
                         )}
-                        {isImprovement && (
-                          <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                        {!isDeleted && isImprovement && (
+                          <AlertTriangle className="w-3 h-3 text-amber-500" />
                         )}
-                        {isUncertain && (
+                        {!isDeleted && isUncertain && (
                           <HelpCircle className="w-3 h-3 text-purple-500" />
                         )}
                       </div>
@@ -1277,6 +1294,13 @@ export default function QADashboard() {
                             <DropdownMenuItem onSelect={() => moveMoment(moment, "good", "uncertain")}>
                               Move to Uncertain
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => deleteMoment(moment, "good")}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <Dialog>
@@ -1406,6 +1430,13 @@ export default function QADashboard() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => moveMoment(moment, "bad", "uncertain")}>
                               Move to Uncertain
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => deleteMoment(moment, "bad")}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1538,6 +1569,13 @@ export default function QADashboard() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => moveMoment(moment, "improvement", "uncertain")}>
                               Move to Uncertain
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => deleteMoment(moment, "improvement")}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1674,6 +1712,13 @@ export default function QADashboard() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => moveMoment(moment, "uncertain", "improvement")}>
                               Move to Needs Improvement
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => deleteMoment(moment, "uncertain")}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

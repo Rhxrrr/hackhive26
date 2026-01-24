@@ -390,6 +390,77 @@ export default function LiveCallPage() {
     URL.revokeObjectURL(url);
   }, [transcriptBlocks]);
 
+  const downloadFullReport = useCallback(() => {
+    const final = transcriptBlocks.filter((b) => !b.isProvisional);
+    const date = new Date().toISOString().slice(0, 10);
+    const lines: string[] = [
+      "CALL REPORT",
+      `Generated: ${new Date().toISOString()}`,
+      "",
+      "=".repeat(60),
+      "TRANSCRIPT",
+      "=".repeat(60),
+      "",
+    ];
+    if (final.length > 0) {
+      lines.push(final.map((b) => `Speaker ${b.speaker}: ${b.text || ""}`).join("\n"));
+    } else {
+      lines.push("(No transcript)");
+    }
+    lines.push("", "-".repeat(60), "NOTES", "-".repeat(60), "");
+    const hasNotes =
+      aiNotes.information.length > 0 ||
+      aiNotes.problems.length > 0 ||
+      aiNotes.requests.length > 0 ||
+      aiNotes.concerns.length > 0;
+    if (hasNotes) {
+      if (aiNotes.information.length > 0) {
+        lines.push("Information:", ...aiNotes.information.map((n) => `  • ${n}`), "");
+      }
+      if (aiNotes.problems.length > 0) {
+        lines.push("Problems:", ...aiNotes.problems.map((n) => `  • ${n}`), "");
+      }
+      if (aiNotes.requests.length > 0) {
+        lines.push("Requests:", ...aiNotes.requests.map((n) => `  • ${n}`), "");
+      }
+      if (aiNotes.concerns.length > 0) {
+        lines.push("Concerns:", ...aiNotes.concerns.map((n) => `  • ${n}`), "");
+      }
+    } else {
+      lines.push("(No notes)");
+    }
+    lines.push("", "-".repeat(60), "COACHING & SOLUTIONS", "-".repeat(60), "");
+    const tips = liveFeedback?.tips ?? [];
+    const ideas = brainstormIdeas?.ideas ?? [];
+    if (tips.length > 0 || ideas.length > 0) {
+      if (tips.length > 0) {
+        lines.push("Coaching:", ...tips.map((t) => `  • ${t}`), "");
+      }
+      if (ideas.length > 0) {
+        lines.push("Solutions:", ...ideas.map((i) => `  • ${i}`), "");
+      }
+    } else {
+      lines.push("(None)");
+    }
+    lines.push("", "-".repeat(60), "SENTIMENT TIMELINE", "-".repeat(60), "");
+    if (sentimentResults.length > 0) {
+      sentimentResults.forEach((s, i) => {
+        const bar = scoreToBar(s.score);
+        lines.push(`[${i + 1}] Score: ${bar}/100 (-1 to +1: ${s.score.toFixed(2)})`, `    ${s.sentiment || ""}`, "");
+      });
+    } else {
+      lines.push("(No sentiment data)");
+    }
+    const text = lines.join("\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `call-report-${date}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcriptBlocks, aiNotes, liveFeedback?.tips, brainstormIdeas?.ideas, sentimentResults]);
+
   const startCall = async () => {
     setError(null);
     setTranscriptBlocks([]);
@@ -609,10 +680,16 @@ export default function LiveCallPage() {
 
           <div className="flex items-center gap-2">
             {!isConnected && transcriptBlocks.length > 0 && (
-              <Button variant="outline" size="sm" onClick={downloadTranscript} className="gap-1.5">
-                <Download className="w-4 h-4" />
-                Download transcript
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={downloadTranscript} className="gap-1.5">
+                  <Download className="w-4 h-4" />
+                  Download transcript
+                </Button>
+                <Button variant="outline" size="sm" onClick={downloadFullReport} className="gap-1.5">
+                  <Download className="w-4 h-4" />
+                  Download full call report
+                </Button>
+              </>
             )}
             <Button
               variant="outline"

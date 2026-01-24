@@ -30,17 +30,37 @@ function cleanTokenText(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-function toneStyles(tone: string): { dot: string; border: string } {
-  switch (tone) {
-    case "positive":
-      return { dot: "bg-emerald-500", border: "border-emerald-500" };
-    case "negative":
-      return { dot: "bg-red-500", border: "border-red-500" };
-    case "mixed":
-      return { dot: "bg-amber-500", border: "border-amber-500" };
-    default:
-      return { dot: "bg-muted-foreground", border: "border-muted-foreground" };
+/** If the tone API returns a long rate-limit message, shorten it for the UI. */
+function normalizeToneError(err: string | null | undefined): string {
+  const s = String(err ?? "").trim();
+  if (!s) return s;
+  if (/rate limit|RPD|gpt-4o-realtime|gpt-4o-audio|requests per day/i.test(s)) {
+    const m = s.match(/(?:please\s+)?try again in\s+([\d][\d.ms]*)\s*[.\s]?/i);
+    const when = m?.[1]?.trim().replace(/\.$/, "");
+    return when ? `Rate limit reached. Try again in ${when}.` : "Rate limit reached. Try again in a few minutes.";
   }
+  return s;
+}
+
+/** Map score in [-1, 1] to dot and border classes (gradient). */
+function scoreStyles(score: number): { dot: string; border: string } {
+  if (score <= -0.5) return { dot: "bg-red-500", border: "border-red-500" };
+  if (score <= -0.2) return { dot: "bg-orange-500", border: "border-orange-500" };
+  if (score <= 0.2) return { dot: "bg-amber-500", border: "border-amber-500" };
+  if (score <= 0.5) return { dot: "bg-emerald-400", border: "border-emerald-400" };
+  return { dot: "bg-emerald-500", border: "border-emerald-500" };
+}
+
+function scoreToBar(score: number): number {
+  return Math.round((score + 1) * 50);
+}
+
+function getSentimentColor(bar: number): string {
+  if (bar >= 70) return "text-emerald-400";
+  if (bar >= 55) return "text-emerald-300";
+  if (bar >= 45) return "text-amber-400";
+  if (bar >= 30) return "text-orange-400";
+  return "text-red-400";
 }
 
 /** Build a WAV Blob from PCM 16‑bit 16kHz mono chunks. Returns null if too short. */
@@ -80,7 +100,7 @@ export default function LiveCallPage() {
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
   const [transcriptBlocks, setTranscriptBlocks] = useState<{ speaker: string; text: string; isProvisional?: boolean }[]>([]);
   const [sentimentResults, setSentimentResults] = useState<
-    { tone: string; sentiment: string; excerpt: string; insertAfterIndex: number }[]
+    { score: number; sentiment: string; excerpt: string; insertAfterIndex: number }[]
   >([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,21 +176,16 @@ export default function LiveCallPage() {
         body: JSON.stringify({ text }),
       });
       const data = await res.json();
-      if (res.ok && data.tone) {
+      if (res.ok && typeof data.score === "number") {
         setSentimentResults((prev) => [
           ...prev,
-          {
-            tone: data.tone,
-            sentiment: data.sentiment || "",
-            excerpt: text,
-            insertAfterIndex,
-          },
+          { score: data.score, sentiment: data.sentiment || "", excerpt: text, insertAfterIndex },
         ]);
       } else {
-        setToneError(data?.error || `Tone API ${res.status}`);
+        setToneError(normalizeToneError(data?.error || `Tone API ${res.status}`));
       }
     } catch (e) {
-      setToneError(e instanceof Error ? e.message : "Tone request failed");
+      setToneError(normalizeToneError(e instanceof Error ? e.message : "Tone request failed"));
     }
   }, []);
 
@@ -180,26 +195,18 @@ export default function LiveCallPage() {
       try {
         const form = new FormData();
         form.append("audio", audioBlob);
-        const res = await fetch("/api/soniox/analyze-tone", {
-          method: "POST",
-          body: form,
-        });
+        const res = await fetch("/api/soniox/analyze-tone", { method: "POST", body: form });
         const data = await res.json();
-        if (res.ok && data.tone) {
+        if (res.ok && typeof data.score === "number") {
           setSentimentResults((prev) => [
             ...prev,
-            {
-              tone: data.tone,
-              sentiment: data.sentiment || "",
-              excerpt: "From audio",
-              insertAfterIndex,
-            },
+            { score: data.score, sentiment: data.sentiment || "", excerpt: "From audio", insertAfterIndex },
           ]);
         } else {
-          setToneError(data?.error || `Tone API ${res.status}`);
+          setToneError(normalizeToneError(data?.error || `Tone API ${res.status}`));
         }
       } catch (e) {
-        setToneError(e instanceof Error ? e.message : "Tone from audio failed");
+        setToneError(normalizeToneError(e instanceof Error ? e.message : "Tone from audio failed"));
       }
     },
     []
@@ -330,12 +337,8 @@ export default function LiveCallPage() {
             ) {
               const toSend = toneBufferRef.current;
               const insertAfterIndex = messagesRef.current.length - 1;
-              const wav = buildWavBlob(toneAudioChunksRef.current);
-              if (wav) {
-                analyzeToneFromAudio(wav, insertAfterIndex);
-              } else {
-                analyzeTone(toSend, insertAfterIndex);
-              }
+              // Use text-only to avoid gpt-4o-audio-preview / gpt-4o-realtime RPD
+              analyzeTone(toSend, insertAfterIndex);
               toneBufferRef.current = "";
               toneSpeakerCountsRef.current = {};
               toneAudioChunksRef.current = [];
@@ -386,12 +389,8 @@ export default function LiveCallPage() {
     }
     if (toneBufferRef.current.length >= TONE_MIN_CHARS) {
       const insertAfterIndex = messagesRef.current.length > 0 ? messagesRef.current.length - 1 : -1;
-      const wav = buildWavBlob(toneAudioChunksRef.current);
-      if (wav) {
-        analyzeToneFromAudio(wav, insertAfterIndex);
-      } else {
-        analyzeTone(toneBufferRef.current, insertAfterIndex);
-      }
+      // Use text-only to avoid gpt-4o-audio-preview / gpt-4o-realtime RPD
+      analyzeTone(toneBufferRef.current, insertAfterIndex);
     }
     callStartRef.current = null;
     setCallDuration("00:00");
@@ -474,7 +473,7 @@ export default function LiveCallPage() {
                   transcriptBlocks.map((b, i) => {
                     const info = getBlockInfo(i);
                     const hovered = info && hoveredSentimentIndex === info.rangeIndex;
-                    const styles = info ? toneStyles(info.sentiment.tone) : null;
+                    const styles = info ? scoreStyles(info.sentiment.score) : null;
                     return (
                       <div
                         key={i}
@@ -492,11 +491,11 @@ export default function LiveCallPage() {
                               <TooltipTrigger asChild>
                                 <span
                                   className={`w-2.5 h-2.5 rounded-full shrink-0 cursor-help ${styles!.dot}`}
-                                  aria-label={`Tone: ${info.sentiment.tone}`}
+                                  aria-label={`Score: ${scoreToBar(info.sentiment.score)}`}
                                 />
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-[200px]">
-                                <p className="font-medium capitalize">{info.sentiment.tone}</p>
+                                <p className="font-medium">{scoreToBar(info.sentiment.score)}</p>
                                 <p className="text-muted-foreground mt-0.5">{info.sentiment.sentiment}</p>
                                 <p className="text-[10px] text-muted-foreground/80 mt-1">
                                   Section: blocks {ranges[info.rangeIndex].start + 1}–{ranges[info.rangeIndex].end + 1}
@@ -559,32 +558,9 @@ export default function LiveCallPage() {
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            s.tone === "positive"
-                              ? "bg-emerald-500"
-                              : s.tone === "negative"
-                                ? "bg-red-500"
-                                : s.tone === "mixed"
-                                  ? "bg-amber-500"
-                                  : "bg-muted-foreground"
-                          }`}
-                          aria-hidden
-                        />
-                        <p className="font-medium">
-                          <span
-                            className={
-                              s.tone === "positive"
-                                ? "text-emerald-500"
-                                : s.tone === "negative"
-                                  ? "text-red-500"
-                                  : s.tone === "mixed"
-                                    ? "text-amber-500"
-                                    : "text-muted-foreground"
-                            }
-                          >
-                            {s.tone}
-                          </span>
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${scoreStyles(s.score).dot}`} aria-hidden />
+                        <p className={`font-medium ${getSentimentColor(scoreToBar(s.score))}`}>
+                          {scoreToBar(s.score)}
                         </p>
                         {blockLabel != null && (
                           <span className="text-[10px] text-muted-foreground" title="Transcript section this applies to">

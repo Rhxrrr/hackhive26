@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { jsPDF } from "jspdf";
 
 // --- Live-call (Soniox + tone) constants and helpers
 const SONIOX_WS = "wss://stt-rt.soniox.com/transcribe-websocket";
@@ -393,21 +394,93 @@ export default function LiveCallPage() {
   const downloadFullReport = useCallback(() => {
     const final = transcriptBlocks.filter((b) => !b.isProvisional);
     const date = new Date().toISOString().slice(0, 10);
-    const lines: string[] = [
-      "CALL REPORT",
-      `Generated: ${new Date().toISOString()}`,
-      "",
-      "=".repeat(60),
-      "TRANSCRIPT",
-      "=".repeat(60),
-      "",
-    ];
+    const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+    const margin = 20;
+    const maxW = 210 - margin * 2;
+    let y = 25;
+    const lineH = 5.5;
+    const pageH = 297;
+    const bottomM = 25;
+
+    const wrap = (text: string): string[] => {
+      const out: string[] = [];
+      for (const para of text.split(/\n/)) {
+        const words = para.trim() ? para.split(/\s+/) : [""];
+        let line = "";
+        for (const w of words) {
+          const cand = line ? `${line} ${w}` : w;
+          if (doc.getTextWidth(cand) <= maxW) line = cand;
+          else {
+            if (line) out.push(line);
+            line = w;
+          }
+        }
+        if (line) out.push(line);
+      }
+      return out;
+    };
+
+    const ensureSpace = (needed: number) => {
+      if (y + needed > pageH - bottomM) {
+        doc.addPage();
+        y = 25;
+      }
+    };
+
+    const addLine = (str: string, opts?: { size?: number; bold?: boolean }) => {
+      ensureSpace(opts?.size ? opts.size * 0.35 + 2 : lineH);
+      if (opts?.size) doc.setFontSize(opts.size);
+      if (opts?.bold) doc.setFont("helvetica", "bold");
+      doc.text(str, margin, y);
+      y += opts?.size ? opts.size * 0.35 + 2 : lineH;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+    };
+
+    const addBlock = (text: string) => {
+      for (const ln of wrap(text)) {
+        ensureSpace(lineH);
+        doc.text(ln, margin, y);
+        y += lineH;
+      }
+    };
+
+    const addSection = (title: string) => {
+      ensureSpace(14);
+      y += 4;
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40, 70, 130);
+      doc.text(title, margin, y);
+      y += 10;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+    };
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 64, 124);
+    doc.text("Call Report", margin, y);
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    y += 12;
+    doc.setTextColor(0, 0, 0);
+
+    // Transcript
+    addSection("Transcript");
     if (final.length > 0) {
-      lines.push(final.map((b) => `Speaker ${b.speaker}: ${b.text || ""}`).join("\n"));
-    } else {
-      lines.push("(No transcript)");
-    }
-    lines.push("", "-".repeat(60), "NOTES", "-".repeat(60), "");
+      const transcriptText = final.map((b) => `Speaker ${b.speaker}: ${b.text || ""}`).join("\n");
+      addBlock(transcriptText);
+    } else addLine("(No transcript)");
+    y += 4;
+
+    // Notes
+    addSection("Notes");
     const hasNotes =
       aiNotes.information.length > 0 ||
       aiNotes.problems.length > 0 ||
@@ -415,50 +488,52 @@ export default function LiveCallPage() {
       aiNotes.concerns.length > 0;
     if (hasNotes) {
       if (aiNotes.information.length > 0) {
-        lines.push("Information:", ...aiNotes.information.map((n) => `  • ${n}`), "");
+        addLine("Information", { bold: true });
+        aiNotes.information.forEach((n) => addBlock(`• ${n}`));
       }
       if (aiNotes.problems.length > 0) {
-        lines.push("Problems:", ...aiNotes.problems.map((n) => `  • ${n}`), "");
+        addLine("Problems", { bold: true });
+        aiNotes.problems.forEach((n) => addBlock(`• ${n}`));
       }
       if (aiNotes.requests.length > 0) {
-        lines.push("Requests:", ...aiNotes.requests.map((n) => `  • ${n}`), "");
+        addLine("Requests", { bold: true });
+        aiNotes.requests.forEach((n) => addBlock(`• ${n}`));
       }
       if (aiNotes.concerns.length > 0) {
-        lines.push("Concerns:", ...aiNotes.concerns.map((n) => `  • ${n}`), "");
+        addLine("Concerns", { bold: true });
+        aiNotes.concerns.forEach((n) => addBlock(`• ${n}`));
       }
-    } else {
-      lines.push("(No notes)");
-    }
-    lines.push("", "-".repeat(60), "COACHING & SOLUTIONS", "-".repeat(60), "");
+    } else addLine("(No notes)");
+    y += 4;
+
+    // Coaching & Solutions
+    addSection("Coaching & Solutions");
     const tips = liveFeedback?.tips ?? [];
     const ideas = brainstormIdeas?.ideas ?? [];
     if (tips.length > 0 || ideas.length > 0) {
       if (tips.length > 0) {
-        lines.push("Coaching:", ...tips.map((t) => `  • ${t}`), "");
+        addLine("Coaching", { bold: true });
+        tips.forEach((t) => addBlock(`• ${t}`));
       }
       if (ideas.length > 0) {
-        lines.push("Solutions:", ...ideas.map((i) => `  • ${i}`), "");
+        addLine("Solutions", { bold: true });
+        ideas.forEach((i) => addBlock(`• ${i}`));
       }
-    } else {
-      lines.push("(None)");
-    }
-    lines.push("", "-".repeat(60), "SENTIMENT TIMELINE", "-".repeat(60), "");
+    } else addLine("(None)");
+    y += 4;
+
+    // Sentiment Timeline
+    addSection("Sentiment Timeline");
     if (sentimentResults.length > 0) {
       sentimentResults.forEach((s, i) => {
         const bar = scoreToBar(s.score);
-        lines.push(`[${i + 1}] Score: ${bar}/100 (-1 to +1: ${s.score.toFixed(2)})`, `    ${s.sentiment || ""}`, "");
+        addLine(`[${i + 1}] Score: ${bar}/100  (${s.score >= 0 ? "+" : ""}${s.score.toFixed(2)})`, { bold: true });
+        if (s.sentiment) addBlock(s.sentiment);
+        y += 2;
       });
-    } else {
-      lines.push("(No sentiment data)");
-    }
-    const text = lines.join("\n");
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `call-report-${date}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    } else addLine("(No sentiment data)");
+
+    doc.save(`call-report-${date}.pdf`);
   }, [transcriptBlocks, aiNotes, liveFeedback?.tips, brainstormIdeas?.ideas, sentimentResults]);
 
   const startCall = async () => {
@@ -687,7 +762,7 @@ export default function LiveCallPage() {
                 </Button>
                 <Button variant="outline" size="sm" onClick={downloadFullReport} className="gap-1.5">
                   <Download className="w-4 h-4" />
-                  Download full call report
+                  Download report (PDF)
                 </Button>
               </>
             )}
@@ -840,11 +915,16 @@ export default function LiveCallPage() {
                       {aiNotes.problems.length > 0 && (
                         <div>
                           <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Problems</p>
-                          <ul className="text-sm space-y-0.5 list-disc list-inside text-muted-foreground">
+                          <div className="space-y-2">
                             {aiNotes.problems.map((n, i) => (
-                              <li key={`pr-${i}`}>{n}</li>
+                              <div
+                                key={`pr-${i}`}
+                                className="rounded-md border border-red-500/25 bg-red-500/10 px-2 py-1.5 text-sm text-muted-foreground"
+                              >
+                                {n}
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         </div>
                       )}
                       {aiNotes.requests.length > 0 && (
@@ -958,11 +1038,11 @@ export default function LiveCallPage() {
           </div>
         </div>
 
-        {/* Debug: Script */}
+        {/* Transcript */}
         <Collapsible className="group mt-6 shrink-0">
           <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 bg-muted/30 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/50">
             <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-            <span>Debug: Script</span>
+            <span>Transcript</span>
             <span className="text-[10px]">({transcript.length} chars)</span>
           </CollapsibleTrigger>
           <CollapsibleContent>

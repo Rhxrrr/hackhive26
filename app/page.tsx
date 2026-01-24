@@ -43,15 +43,10 @@ export default function HomePage() {
               className="text-xl md:text-2xl text-white/90 mx-auto justify-center"
             />
           </div>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center">
-            <Link href="/manager" prefetch={true}>
+          <div className="flex justify-center">
+            <Link href="/dashboard" prefetch={true}>
               <button className="bg-white text-black flex items-center justify-center space-x-2 px-6 py-3 text-base w-48 border border-white/30 shadow-lg rounded-full hover:bg-white/90 transition-colors">
-                Manager Portal
-              </button>
-            </Link>
-            <Link href="/agent" prefetch={true}>
-              <button className="bg-transparent text-white flex items-center justify-center space-x-2 px-6 py-3 text-base w-48 border border-white/30 shadow-lg rounded-full hover:bg-white/10 transition-colors">
-                Agent Portal
+                Go to Dashboard
               </button>
             </Link>
           </div>

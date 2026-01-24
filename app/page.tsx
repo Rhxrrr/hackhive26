@@ -295,6 +295,9 @@ export default function QADashboard() {
   const [highlightedTimePosition, setHighlightedTimePosition] = useState<
     number | null
   >(null);
+  const [highlightedMomentType, setHighlightedMomentType] = useState<
+    "good" | "bad" | "improvement" | "uncertain" | null
+  >(null);
   const [goodOpen, setGoodOpen] = useState(true);
   const [badOpen, setBadOpen] = useState(true);
   const [improvementOpen, setImprovementOpen] = useState(true);
@@ -414,25 +417,57 @@ export default function QADashboard() {
     const barSlotWidth = rect.width / waveformData.length;
     const barGap = 1;
     const barWidth = Math.max(1, barSlotWidth - barGap);
-    const playedColor = "#E8E8E8";
-    const unplayedColor = "#555555";
+
+    const defaultPlayed = "#E8E8E8";
+    const defaultUnplayed = "#555555";
+    const highlightColors: Record<
+      "good" | "bad" | "improvement" | "uncertain",
+      string
+    > = {
+      good: "#047857",
+      bad: "#b91c1c",
+      improvement: "#ca8a04",
+      uncertain: "#6d28d9",
+    };
+
+    // Bar indices at the highlighted timestamp — only unplayed bars in this region get the accent
+    const barCount = waveformData.length;
+    const centerBar =
+      highlightedTimePosition != null && highlightedMomentType
+        ? Math.round((highlightedTimePosition / duration) * barCount)
+        : -1;
+    const highlightRadius = 4; // bars on each side of center to color
+    const isInHighlight = (i: number) =>
+      centerBar >= 0 && Math.abs(i - centerBar) <= highlightRadius;
 
     ctx.clearRect(0, 0, rect.width, rect.height);
     waveformData.forEach((val, i) => {
       const barHeight = val * maxBarHeight;
       const x = i * barSlotWidth;
       const isPlayed = x < progressWidth;
-      ctx.fillStyle = isPlayed ? playedColor : unplayedColor;
+      const inHighlight = isInHighlight(i);
+      // In the highlight: played bars stay default (no lighter accent); only unplayed bars get the color
+      const accent = inHighlight && highlightedMomentType ? highlightColors[highlightedMomentType] : null;
+      ctx.fillStyle =
+        inHighlight && accent && !isPlayed
+          ? accent
+          : isPlayed
+            ? defaultPlayed
+            : defaultUnplayed;
       ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
     });
-  }, [waveformData, currentTime, totalDuration]);
+  }, [waveformData, currentTime, totalDuration, highlightedMomentType, highlightedTimePosition]);
 
   const parseTimeToSeconds = (time: string) => {
     const parts = time.split(":");
     return parseInt(parts[0]) * 60 + parseInt(parts[1]);
   };
 
-  const scrollToLine = (lineId: number, time?: string) => {
+  const scrollToLine = (
+    lineId: number,
+    time?: string,
+    momentType?: "good" | "bad" | "improvement" | "uncertain"
+  ) => {
     setHighlightedLine(lineId);
     const element = document.getElementById(`line-${lineId}`);
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -441,8 +476,8 @@ export default function QADashboard() {
       const timeInSeconds = parseTimeToSeconds(time);
       setCurrentTime(timeInSeconds);
       setHighlightedTimePosition(timeInSeconds);
+      setHighlightedMomentType(momentType ?? null);
       if (mediaRef.current) mediaRef.current.currentTime = timeInSeconds;
-      setTimeout(() => setHighlightedTimePosition(null), 2000);
     }
 
     setTimeout(() => setHighlightedLine(null), 2000);
@@ -611,10 +646,10 @@ export default function QADashboard() {
         </div>
 
         {/* Audio Bar */}
-        <div className="bg-card rounded-xl border border-border p-4 shrink-0">
+        <div className="bg-card rounded-xl border border-border px-3 py-1 shrink-0">
           {!file ? (
-            <div className="flex items-center justify-center gap-3 py-2 text-center">
-              <Upload className="w-8 h-8 text-muted-foreground/50" />
+            <div className="flex items-center justify-center gap-2 py-1.5 text-center">
+              <Upload className="w-6 h-6 text-muted-foreground/50" />
               <div className="text-left">
                 <p className="text-sm text-muted-foreground">No data</p>
                 <p className="text-xs text-muted-foreground/80">
@@ -623,8 +658,8 @@ export default function QADashboard() {
               </div>
             </div>
           ) : isLoading ? (
-            <div className="flex items-center justify-center gap-3 py-2 text-center">
-              <Spinner className="w-8 h-8 text-muted-foreground" />
+            <div className="flex items-center justify-center gap-2 py-1.5 text-center">
+              <Spinner className="w-6 h-6 text-muted-foreground" />
               <div className="text-left">
                 <p className="text-sm text-muted-foreground">
                   Analyzing call...
@@ -635,11 +670,11 @@ export default function QADashboard() {
               </div>
             </div>
           ) : (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
               size="icon"
-              className="shrink-0 bg-transparent"
+              className="shrink-0 h-8 w-8 bg-transparent"
               onClick={() => {
                 if (!mediaRef.current) return;
                 if (isPlaying) mediaRef.current.pause();
@@ -658,7 +693,7 @@ export default function QADashboard() {
             <div className="flex-1 relative">
               <canvas
                 ref={waveformCanvasRef}
-                className="w-full h-20 rounded-xl bg-card"
+                className="w-full h-14 rounded-lg bg-card"
               />
               <input
                 type="range"
@@ -674,54 +709,19 @@ export default function QADashboard() {
               />
               {file && (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none"
+                  className="absolute top-1/4 bottom-1/4 w-0 border-l border-white pointer-events-none"
                   style={{ left: `${(currentTime / (totalDuration || 1)) * 100}%` }}
-                />
-              )}
-              {/* Markers on timeline - purple (uncertain) only - below waveform */}
-              {uncertainMoments.map((m, i) => {
-                const timeInSeconds =
-                  parseInt(m.time.split(":")[0]) * 60 +
-                  parseInt(m.time.split(":")[1]);
-                return (
-                  <div
-                    key={`uncertain-${i}`}
-                    className="absolute top-full mt-0.5 -translate-x-1/2 z-10 cursor-pointer hover:scale-125 transition-transform"
-                    style={{
-                      left: `${(timeInSeconds / (totalDuration || 1)) * 100}%`,
-                    }}
-                    onClick={() => {
-                      setCurrentTime(timeInSeconds);
-                      scrollToLine(m.lineId, m.time);
-                    }}
-                    title={m.message}
-                  >
-                    <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[15px] border-l-transparent border-r-transparent border-b-purple-500 relative">
-                      <span className="absolute -bottom-[17px] left-1/2 -translate-x-1/2 text-[9px] font-bold text-purple-500">
-                        !
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Highlight indicator */}
-              {highlightedTimePosition !== null && (
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white/30 rounded-full animate-ping z-10"
-                  style={{
-                    left: `${(highlightedTimePosition ?? 0) / (totalDuration || 1) * 100}%`,
-                  }}
                 />
               )}
             </div>
             <span className="text-sm font-mono text-muted-foreground w-12">
               {formatTime(totalDuration)}
             </span>
-            <div className="flex items-center gap-2 ml-2">
+            <div className="flex items-center gap-1.5 ml-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="shrink-0 h-8 w-8"
+                className="shrink-0 h-7 w-7"
                 onClick={() => setIsMuted(!isMuted)}
               >
                 {isMuted || volume === 0 ? (
@@ -739,11 +739,11 @@ export default function QADashboard() {
                   setVolume(Number(e.target.value));
                   if (Number(e.target.value) > 0) setIsMuted(false);
                 }}
-                className="w-20 h-1 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
+                className="w-16 h-1 bg-secondary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground"
               />
             </div>
             <Select value={playbackSpeed} onValueChange={setPlaybackSpeed}>
-              <SelectTrigger className="w-20 h-8 text-xs">
+              <SelectTrigger className="w-16 h-7 text-xs">
                 <SelectValue placeholder="Speed" />
               </SelectTrigger>
               <SelectContent>
@@ -844,7 +844,7 @@ export default function QADashboard() {
                               : isBad
                                 ? "bg-red-500/20 text-red-100 border border-red-500/30"
                                 : isImprovement
-                                  ? "bg-amber-500/20 text-amber-100 border border-amber-500/30"
+                                  ? "bg-yellow-500/25 text-yellow-100 border border-yellow-500/40"
                                   : "bg-secondary text-foreground"
                             : isUncertain
                               ? "bg-purple-500/20 text-purple-100 border border-purple-500/30"
@@ -870,7 +870,7 @@ export default function QADashboard() {
                           <ArrowDown className="w-3 h-3 text-red-500" />
                         )}
                         {isImprovement && (
-                          <AlertTriangle className="w-3 h-3 text-amber-500" />
+                          <AlertTriangle className="w-3 h-3 text-yellow-500" />
                         )}
                         {isUncertain && (
                           <HelpCircle className="w-3 h-3 text-purple-500" />
@@ -933,7 +933,7 @@ export default function QADashboard() {
                   {goodMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
                       <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time)}
+                        onClick={() => scrollToLine(moment.lineId, moment.time, "good")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors group"
                       >
                         <span className="text-xs font-mono text-emerald-500 bg-emerald-500/20 px-1.5 py-0.5 rounded shrink-0">
@@ -995,7 +995,7 @@ export default function QADashboard() {
                   {badMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
                       <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time)}
+                        onClick={() => scrollToLine(moment.lineId, moment.time, "bad")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-red-500/10 transition-colors group"
                       >
                         <span className="text-xs font-mono text-red-500 bg-red-500/20 px-1.5 py-0.5 rounded shrink-0">
@@ -1038,19 +1038,19 @@ export default function QADashboard() {
               open={improvementOpen}
               onOpenChange={setImprovementOpen}
               className={cn(
-                "bg-amber-500/10 border border-amber-500/20 rounded-xl overflow-hidden flex flex-col",
+                "bg-yellow-500/10 border border-yellow-500/25 rounded-xl overflow-hidden flex flex-col",
                 improvementOpen ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-amber-500/5 transition-colors shrink-0">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-yellow-500/5 transition-colors shrink-0">
                 <ChevronDown
-                  className={`w-4 h-4 text-amber-500 transition-transform ${improvementOpen ? "" : "-rotate-90"}`}
+                  className={`w-4 h-4 text-yellow-500 transition-transform ${improvementOpen ? "" : "-rotate-90"}`}
                 />
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                <h3 className="font-medium text-amber-400">
+                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                <h3 className="font-medium text-yellow-400">
                   Needs Improvement
                 </h3>
-                <span className="ml-auto text-xs text-amber-500/70 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                <span className="ml-auto text-xs text-yellow-600 bg-yellow-500/15 px-2 py-0.5 rounded-full">
                   {needsImprovementMoments.length} moments
                 </span>
               </CollapsibleTrigger>
@@ -1059,13 +1059,13 @@ export default function QADashboard() {
                   {needsImprovementMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
                       <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time)}
-                        className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-amber-500/10 transition-colors group"
+                        onClick={() => scrollToLine(moment.lineId, moment.time, "improvement")}
+                        className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-yellow-500/10 transition-colors group"
                       >
-                        <span className="text-xs font-mono text-amber-500 bg-amber-500/20 px-1.5 py-0.5 rounded shrink-0">
+                        <span className="text-xs font-mono text-yellow-600 bg-yellow-400/30 px-1.5 py-0.5 rounded shrink-0">
                           {moment.time}
                         </span>
-                        <span className="text-sm text-amber-100/80 group-hover:text-amber-100">
+                        <span className="text-sm text-yellow-100/90 group-hover:text-yellow-100">
                           {moment.message}
                         </span>
                       </button>
@@ -1074,7 +1074,7 @@ export default function QADashboard() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="ml-2 h-6 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                            className="ml-2 h-6 text-xs text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10"
                           >
                             <BookOpen className="w-3 h-3 mr-1" />
                             Rubric {moment.rubricSection}: {moment.rubric}
@@ -1082,7 +1082,7 @@ export default function QADashboard() {
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
-                            <DialogTitle className="text-amber-400">
+                            <DialogTitle className="text-yellow-400">
                               Section {moment.rubricSection}: {moment.rubric}
                             </DialogTitle>
                           </DialogHeader>
@@ -1127,7 +1127,7 @@ export default function QADashboard() {
                   {uncertainMoments.map((moment, i) => (
                     <div key={i} className="space-y-1">
                       <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time)}
+                        onClick={() => scrollToLine(moment.lineId, moment.time, "uncertain")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-purple-500/10 transition-colors group"
                       >
                         <span className="text-xs font-mono text-purple-500 bg-purple-500/20 px-1.5 py-0.5 rounded shrink-0">

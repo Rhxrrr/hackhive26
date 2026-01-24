@@ -3,10 +3,9 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Plus, Trash2, Save, ArrowLeft } from "lucide-react"
+import { Upload, Save, ArrowLeft, FileText, X } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 
 const defaultCategories = [
   "Greeting & Introduction",
@@ -19,25 +18,78 @@ const defaultCategories = [
 
 export default function RubricPage() {
   const [categories, setCategories] = useState<string[]>(defaultCategories)
-  const [newCategory, setNewCategory] = useState("")
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [hasExistingRubric, setHasExistingRubric] = useState(false)
 
-  const addCategory = () => {
-    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
-      setCategories([...categories, newCategory.trim()])
-      setNewCategory("")
-      setHasChanges(true)
+  useEffect(() => {
+    // Check if rubric file exists in localStorage
+    const rubricData = localStorage.getItem('qa-rubric-file')
+    if (rubricData) {
+      try {
+        const parsed = JSON.parse(rubricData)
+        setHasExistingRubric(true)
+        if (parsed.categories) {
+          setCategories(parsed.categories)
+        }
+        if (parsed.fileName) {
+          // Create a mock file object for display
+          const mockFile = new File([], parsed.fileName, { type: 'text/plain' })
+          setUploadedFile(mockFile)
+        }
+      } catch (e) {
+        console.error('Error parsing rubric data:', e)
+      }
+    }
+  }, [])
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== "text/plain" && !file.name.endsWith(".txt")) {
+      alert("Please upload a .txt file")
+      return
+    }
+
+    setUploadedFile(file)
+    setHasChanges(true)
+    setHasExistingRubric(true)
+
+    // Read and parse the file
+    const text = await file.text()
+    const lines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      // Remove numbers at the start of lines (e.g., "1. Category" -> "Category")
+      .map((line) => line.replace(/^\d+[\.\)]\s*/, ""))
+      .filter((line) => line.length > 0)
+
+    if (lines.length > 0) {
+      setCategories(lines)
     }
   }
 
-  const removeCategory = (index: number) => {
-    setCategories(categories.filter((_, i) => i !== index))
+  const handleRemoveFile = () => {
+    setUploadedFile(null)
+    setCategories(defaultCategories)
     setHasChanges(true)
+    setHasExistingRubric(false)
+    localStorage.removeItem('qa-rubric-file')
+    window.dispatchEvent(new Event('rubric-updated'))
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
   }
 
   const handleSave = () => {
     // TODO: Save to backend/database
     console.log("Saving rubric categories:", categories)
+    if (uploadedFile) {
+      console.log("Uploaded file:", uploadedFile.name)
+    }
     setHasChanges(false)
     // Show success message
   }
@@ -73,49 +125,65 @@ export default function RubricPage() {
           <div className="max-w-4xl mx-auto space-y-6">
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle>Evaluation Categories</CardTitle>
+                <CardTitle>{hasExistingRubric ? "Update QA Rubric" : "Upload QA Rubric"}</CardTitle>
                 <CardDescription>
-                  Define the categories used to evaluate call quality. These will be applied to all call reviews.
+                  Upload a .txt file containing evaluation categories (one per line). Numbers will be automatically removed.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Existing Categories */}
-                <div className="space-y-2">
-                  {categories.map((category, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-4"
-                    >
-                      <span className="text-sm font-medium text-foreground">{category}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeCategory(index)}
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
+                {/* File Upload */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,text/plain"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      id="rubric-upload"
+                    />
+                    <label htmlFor="rubric-upload">
+                      <Button asChild variant="outline" className="gap-2 cursor-pointer">
+                        <span>
+                          <Upload className="h-4 w-4" />
+                          {hasExistingRubric ? "Update Rubric File" : "Upload Rubric File"}
+                        </span>
                       </Button>
-                    </div>
-                  ))}
-                </div>
+                    </label>
+                    {uploadedFile && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <FileText className="h-4 w-4" />
+                        <span>{uploadedFile.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleRemoveFile}
+                          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-                {/* Add New Category */}
-                <div className="flex gap-2 pt-4 border-t border-border">
-                  <Input
-                    placeholder="Enter new category name..."
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        addCategory()
-                      }
-                    }}
-                    className="flex-1"
-                  />
-                  <Button onClick={addCategory} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Category
-                  </Button>
+                  {/* Preview Categories */}
+                  {categories.length > 0 && (
+                    <div className="space-y-2 pt-4 border-t border-border">
+                      <p className="text-sm font-medium text-foreground mb-2">
+                        Categories ({categories.length}):
+                      </p>
+                      <div className="space-y-2">
+                        {categories.map((category, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center rounded-lg border border-border bg-muted/50 p-3"
+                          >
+                            <span className="text-sm text-foreground">{category}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

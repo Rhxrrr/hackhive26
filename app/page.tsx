@@ -961,32 +961,6 @@ export default function QADashboard() {
                   style={{ left: `${(currentTime / (totalDuration || 1)) * 100}%` }}
                 />
               )}
-              {/* Markers on timeline - purple (uncertain) only - below waveform */}
-              {momentsUncertain.map((m, i) => {
-                const timeInSeconds =
-                  parseInt(m.time.split(":")[0]) * 60 +
-                  parseInt(m.time.split(":")[1]);
-                return (
-                  <div
-                    key={`uncertain-${i}`}
-                    className="absolute top-full mt-0.5 -translate-x-1/2 z-10 cursor-pointer hover:scale-125 transition-transform"
-                    style={{
-                      left: `${(timeInSeconds / (totalDuration || 1)) * 100}%`,
-                    }}
-                    onClick={() => {
-                      setCurrentTime(timeInSeconds);
-                      scrollToLine(m.lineId, m.time, "uncertain");
-                    }}
-                    title={m.message}
-                  >
-                    <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[15px] border-l-transparent border-r-transparent border-b-purple-500 relative">
-                      <span className="absolute -bottom-[17px] left-1/2 -translate-x-1/2 text-[9px] font-bold text-purple-500">
-                        !
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
               {/* Highlight indicator */}
               {highlightedTimePosition !== null && (
                 <div
@@ -1781,7 +1755,7 @@ export default function QADashboard() {
           (file.type.startsWith("video/") ? (
             <video
               ref={mediaRef as React.RefObject<HTMLVideoElement>}
-              src={mediaObjectUrl ?? ""}
+              src={mediaObjectUrl || undefined}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onLoadedMetadata={(e) =>
@@ -1795,7 +1769,7 @@ export default function QADashboard() {
           ) : (
             <audio
               ref={mediaRef as React.RefObject<HTMLAudioElement>}
-              src={mediaObjectUrl ?? ""}
+              src={mediaObjectUrl || undefined}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onLoadedMetadata={(e) =>

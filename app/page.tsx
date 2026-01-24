@@ -482,9 +482,9 @@ export default function QADashboard() {
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg border border-border transition-colors">
-                <Upload className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-foreground">
+              <div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg border border-border transition-colors min-w-0">
+                <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-sm text-foreground min-w-0 max-w-44 truncate">
                   {file ? file.name : "Upload Call"}
                 </span>
               </div>
@@ -623,7 +623,7 @@ export default function QADashboard() {
                 />
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-2">
               {filteredTranscript.map((line) => {
                 const isGood = goodMoments.some((m) => m.lineId === line.id);
                 const isBad = badMoments.some((m) => m.lineId === line.id);
@@ -639,15 +639,13 @@ export default function QADashboard() {
                   <div
                     key={line.id}
                     id={`line-${line.id}`}
-                    className={`flex ${isAgent ? "justify-start" : "justify-end"} transition-all duration-300 ${
-                      highlightedLine === line.id ? "scale-105" : ""
-                    }`}
+                    className={`flex ${isAgent ? "justify-start" : "justify-end"}`}
                   >
                     <div
                       className={`max-w-[80%] relative ${isAgent ? "pr-6" : "pl-6"}`}
                     >
                       <div
-                        className={`px-4 py-2.5 rounded-2xl text-sm ${
+                        className={`px-4 py-2.5 rounded-2xl text-sm transition-all duration-300 ${
                           isAgent
                             ? isGood
                               ? "bg-emerald-500/20 text-emerald-100 border border-emerald-500/30"
@@ -659,7 +657,11 @@ export default function QADashboard() {
                             : isUncertain
                               ? "bg-purple-500/20 text-purple-100 border border-purple-500/30"
                               : "bg-blue-600 text-white"
-                        } ${isAgent ? "rounded-bl-md" : "rounded-br-md"}`}
+                        } ${isAgent ? "rounded-bl-md" : "rounded-br-md"} ${
+                          highlightedLine === line.id
+                            ? "shadow-[inset_0_0_0_2px_rgba(251,191,36,0.5)]"
+                            : ""
+                        }`}
                       >
                         {line.text}
                       </div>

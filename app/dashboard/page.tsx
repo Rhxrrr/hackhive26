@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, ClipboardList, TrendingUp, TrendingDown, CheckCircle2, AlertCircle } from "lucide-react"
+import { Upload, ClipboardList, TrendingUp, TrendingDown, CheckCircle2, AlertCircle, FileText, BarChart } from "lucide-react"
 import Link from "next/link"
 import AnimatedList from "@/components/AnimatedList"
+import CountUp from "@/components/CountUp"
 
 // Mock data for today's team performance
 const mockTeamScores = [
@@ -85,25 +85,31 @@ function TeamScoreToday() {
   }
 
   return (
-    <Card className="border-border bg-card/80 backdrop-blur-sm">
-      <CardHeader className="pb-0">
+    <div>
+      <div className="pb-1">
         <div>
-          <CardTitle className="text-lg font-semibold text-foreground">Team Score This Month</CardTitle>
+          <h2 className="text-xl font-semibold text-foreground">Team Score This Month</h2>
         </div>
-      </CardHeader>
-      <CardContent className="pt-1">
+      </div>
+      <div className="pt-1">
         <div className="grid grid-cols-[1fr_2fr] gap-4 items-start">
           {/* Left Side - Summary Stats */}
           <div className="space-y-2">
-            <div className="rounded-lg border border-border bg-card p-2.5 mb-1.5">
+            <div className="rounded-lg border border-border bg-card p-3 mb-1.5">
               <p className="text-sm text-muted-foreground mb-1">Overall Score</p>
               <p className={`text-3xl font-bold ${
                 overallScore >= 85 ? "text-success" : overallScore >= 75 ? "text-blue-500" : "text-warning"
               }`}>
-                {overallScore}%
+                <CountUp
+                  from={0}
+                  to={overallScore}
+                  direction="up"
+                  duration={1}
+                  startWhen={true}
+                />%
               </p>
             </div>
-            <div className="rounded-lg border border-success/30 bg-success/5 p-2.5">
+            <div className="rounded-lg border border-success/30 bg-success/5 p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <CheckCircle2 className="h-4 w-4 text-success" />
                 <p className="text-xs font-medium text-success">Excelling</p>
@@ -111,7 +117,7 @@ function TeamScoreToday() {
               <p className="text-xl font-bold text-success">{excellentCategories.length}</p>
               <p className="text-xs text-muted-foreground mt-0.5">categories above target</p>
             </div>
-            <div className="rounded-lg border border-warning/30 bg-warning/5 p-2.5">
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <AlertCircle className="h-4 w-4 text-warning" />
                 <p className="text-xs font-medium text-warning">Needs Attention</p>
@@ -123,7 +129,7 @@ function TeamScoreToday() {
 
           {/* Right Side - Category Breakdown */}
           <div className="space-y-1.5">
-            <h3 className="text-xs font-semibold text-foreground mb-0.5">Category Performance</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-0.5">Category Performance</h3>
             <AnimatedList
               showGradients
               enableArrowNavigation
@@ -170,8 +176,8 @@ function TeamScoreToday() {
             </AnimatedList>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -243,7 +249,8 @@ export default function DashboardPage() {
                 description="Calls awaiting QA review"
                 href="/reviews?status=ready"
                 actionLabel="Start Reviewing"
-                variant="warning"
+                variant="info"
+                icon={FileText}
               />
               <QuickActionCard
                 title="Team Analytics"
@@ -251,7 +258,8 @@ export default function DashboardPage() {
                 description="View team performance metrics"
                 href="/analytics"
                 actionLabel="View Analytics"
-                variant="success"
+                variant="info"
+                icon={BarChart}
               />
               <QuickActionCard
                 title="QA Rubric"

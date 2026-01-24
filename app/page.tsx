@@ -15,12 +15,10 @@ import {
   Download,
   Volume2,
   VolumeX,
-  Search,
   ChevronDown,
   HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -274,6 +272,8 @@ const fullReport = {
   },
   summary:
     "Sarah demonstrated strong opening and closing protocols with professional demeanor throughout most of the call. Her empathy skills are solid, particularly when validating customer frustration. However, the attempt to transfer the call unnecessarily and asking about router restart without checking notes shows areas for improvement in call handling and troubleshooting protocols. The recovery from the transfer mistake was handled well, showing adaptability.",
+  conversationSummary:
+    "The customer reported intermittent internet disconnections over the past two days. The agent verified the account, ran a line diagnostic, and asked if the customer had tried restarting the router—they had. The agent initially suggested transferring to technical support, which frustrated the customer who had already been transferred twice. The agent apologized and reset the connection remotely instead. The customer confirmed the connection was restored and working, and the call ended with a standard closing.",
   recommendations: [
     "Review troubleshooting protocol section 4.2 regarding checking account notes before asking customers to repeat steps",
     "Practice confident decision-making to avoid unnecessary transfer attempts",
@@ -290,7 +290,7 @@ export default function QADashboard() {
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [showAISummary, setShowAISummary] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState("1");
   const [highlightedTimePosition, setHighlightedTimePosition] = useState<
     number | null
@@ -299,10 +299,6 @@ export default function QADashboard() {
   const [badOpen, setBadOpen] = useState(true);
   const [improvementOpen, setImprovementOpen] = useState(true);
   const [uncertainOpen, setUncertainOpen] = useState(true);
-
-  const filteredTranscript = transcript.filter((line) =>
-    line.text.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
 
   const [totalDuration, setTotalDuration] = useState(1);
   const mediaRef = useRef<HTMLMediaElement | null>(null);
@@ -692,16 +688,24 @@ export default function QADashboard() {
                 Call Transcript
               </h2>
               {file && !isLoading && (
-                <div className="relative w-56">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Search transcript..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 h-8 text-sm"
-                  />
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAISummary((s) => !s)}
+                  className="h-8 gap-1.5"
+                >
+                  {showAISummary ? (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Full Transcript
+                    </>
+                  ) : (
+                    <>
+                      <BookOpen className="w-4 h-4" />
+                      AI Summary
+                    </>
+                  )}
+                </Button>
               )}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-2">
@@ -725,9 +729,15 @@ export default function QADashboard() {
                     Generating transcript and insights
                   </p>
                 </div>
+              ) : showAISummary ? (
+                <div className="flex flex-col gap-3 p-2">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {fullReport.conversationSummary}
+                  </p>
+                </div>
               ) : (
               <>
-              {filteredTranscript.map((line) => {
+              {transcript.map((line) => {
                 const isGood = goodMoments.some((m) => m.lineId === line.id);
                 const isBad = badMoments.some((m) => m.lineId === line.id);
                 const isImprovement = needsImprovementMoments.some(

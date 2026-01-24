@@ -104,33 +104,24 @@ export function WaveformTimeline({
 
     const drawWaveform = () => {
       ctx.clearRect(0, 0, rect.width, rect.height)
-      
-      const barWidth = rect.width / waveformData.length
-      const centerY = rect.height / 2
-      const maxBarHeight = rect.height * 0.8
 
-      // Draw background bars
-      ctx.fillStyle = "rgba(255, 255, 255, 0.15)"
+      const centerY = rect.height / 2
+      const maxBarHeight = rect.height * 0.45
+      const barSlotWidth = rect.width / waveformData.length
+      const barGap = 1
+      const barWidth = Math.max(1, barSlotWidth - barGap)
+
+      const playedColor = "#E8E8E8"
+      const unplayedColor = "#555555"
+      const progressWidth = duration > 0 ? (currentTime / duration) * rect.width : 0
+
       waveformData.forEach((val, i) => {
         const barHeight = val * maxBarHeight
-        const x = i * barWidth
-        ctx.fillRect(x, centerY - barHeight / 2, barWidth - 1, barHeight)
+        const x = i * barSlotWidth
+        const isPlayed = x < progressWidth
+        ctx.fillStyle = isPlayed ? playedColor : unplayedColor
+        ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight)
       })
-
-      // Draw progress bars
-      if (duration > 0) {
-        const progressRatio = currentTime / duration
-        const progressWidth = progressRatio * rect.width
-        
-        ctx.fillStyle = "rgba(255, 255, 255, 0.6)"
-        waveformData.forEach((val, i) => {
-          const x = i * barWidth
-          if (x < progressWidth) {
-            const barHeight = val * maxBarHeight
-            ctx.fillRect(x, centerY - barHeight / 2, barWidth - 1, barHeight)
-          }
-        })
-      }
     }
 
     drawWaveform()
@@ -253,7 +244,7 @@ export function WaveformTimeline({
         <canvas
           ref={canvasRef}
           onClick={handleCanvasClick}
-          className="w-full h-24 rounded-lg bg-secondary/50 cursor-pointer"
+          className="w-full h-24 rounded-lg bg-black cursor-pointer"
         />
 
         {/* Markers */}
@@ -314,7 +305,7 @@ export function WaveformTimeline({
         {/* Playhead */}
         {duration > 0 && (
           <div
-            className="absolute top-0 bottom-0 w-0.5 bg-foreground pointer-events-none"
+            className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none"
             style={{ left: `${(currentTime / duration) * 100}%` }}
           />
         )}

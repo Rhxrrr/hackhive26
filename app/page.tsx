@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Upload,
   ArrowUp,
@@ -41,6 +41,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 const transcript = [
   {
@@ -282,6 +283,8 @@ const fullReport = {
 
 export default function QADashboard() {
   const [file, setFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [highlightedLine, setHighlightedLine] = useState<number | null>(null);
@@ -301,14 +304,57 @@ export default function QADashboard() {
     line.text.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const totalDuration = 135; // 2:15 in seconds
+  const [totalDuration, setTotalDuration] = useState(1);
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
       setFile(selectedFile);
+      setIsLoading(true);
+      loadTimeoutRef.current = setTimeout(() => {
+        setIsLoading(false);
+        loadTimeoutRef.current = null;
+      }, 2500);
     }
+    e.target.value = "";
   };
+
+  useEffect(() => {
+    return () => {
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+    };
+  }, []);
+
+  // Set media source when file changes
+  useEffect(() => {
+    if (!file || !mediaRef.current) return;
+    const url = URL.createObjectURL(file);
+    mediaRef.current.src = url;
+    setCurrentTime(0);
+    setTotalDuration(1);
+    return () => {
+      URL.revokeObjectURL(url);
+      if (mediaRef.current) {
+        mediaRef.current.pause();
+        mediaRef.current.removeAttribute("src");
+      }
+    };
+  }, [file]);
+
+  // Sync volume and mute to media element
+  useEffect(() => {
+    if (!mediaRef.current || !file) return;
+    mediaRef.current.muted = isMuted;
+    mediaRef.current.volume = isMuted ? 0 : volume / 100;
+  }, [volume, isMuted, file]);
+
+  // Sync playback speed to media element
+  useEffect(() => {
+    if (!mediaRef.current || !file) return;
+    mediaRef.current.playbackRate = parseFloat(playbackSpeed);
+  }, [playbackSpeed, file]);
 
   const parseTimeToSeconds = (time: string) => {
     const parts = time.split(":");
@@ -324,6 +370,7 @@ export default function QADashboard() {
       const timeInSeconds = parseTimeToSeconds(time);
       setCurrentTime(timeInSeconds);
       setHighlightedTimePosition(timeInSeconds);
+      if (mediaRef.current) mediaRef.current.currentTime = timeInSeconds;
       setTimeout(() => setHighlightedTimePosition(null), 2000);
     }
 
@@ -478,7 +525,7 @@ export default function QADashboard() {
             <label className="cursor-pointer">
               <input
                 type="file"
-                accept="audio/*"
+                accept="audio/*,video/*"
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -494,12 +541,39 @@ export default function QADashboard() {
 
         {/* Audio Bar */}
         <div className="bg-card rounded-xl border border-border p-4 shrink-0">
+          {!file ? (
+            <div className="flex items-center justify-center gap-3 py-2 text-center">
+              <Upload className="w-8 h-8 text-muted-foreground/50" />
+              <div className="text-left">
+                <p className="text-sm text-muted-foreground">No data</p>
+                <p className="text-xs text-muted-foreground/80">
+                  Upload a call to analyze
+                </p>
+              </div>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center gap-3 py-2 text-center">
+              <Spinner className="w-8 h-8 text-muted-foreground" />
+              <div className="text-left">
+                <p className="text-sm text-muted-foreground">
+                  Analyzing call...
+                </p>
+                <p className="text-xs text-muted-foreground/80">
+                  Generating transcript and insights
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="flex items-center gap-4">
             <Button
               variant="outline"
               size="icon"
               className="shrink-0 bg-transparent"
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={() => {
+                if (!mediaRef.current) return;
+                if (isPlaying) mediaRef.current.pause();
+                else mediaRef.current.play();
+              }}
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4" />
@@ -514,15 +588,19 @@ export default function QADashboard() {
               <div className="h-2 bg-secondary rounded-full">
                 <div
                   className="h-2 bg-foreground/50 rounded-full transition-all"
-                  style={{ width: `${(currentTime / totalDuration) * 100}%` }}
+                  style={{ width: `${(currentTime / (totalDuration || 1)) * 100}%` }}
                 />
               </div>
               <input
                 type="range"
                 min="0"
-                max={totalDuration}
+                max={totalDuration || 1}
                 value={currentTime}
-                onChange={(e) => setCurrentTime(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setCurrentTime(v);
+                  if (mediaRef.current) mediaRef.current.currentTime = v;
+                }}
                 className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
               />
               {/* Markers on timeline - purple (uncertain) only */}
@@ -535,11 +613,11 @@ export default function QADashboard() {
                     key={`uncertain-${i}`}
                     className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-150 transition-transform"
                     style={{
-                      left: `${(timeInSeconds / totalDuration) * 100}%`,
+                      left: `${(timeInSeconds / (totalDuration || 1)) * 100}%`,
                     }}
                     onClick={() => {
                       setCurrentTime(timeInSeconds);
-                      scrollToLine(m.lineId);
+                      scrollToLine(m.lineId, m.time);
                     }}
                     title={m.message}
                   >
@@ -556,7 +634,7 @@ export default function QADashboard() {
                 <div
                   className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white/30 rounded-full animate-ping"
                   style={{
-                    left: `${(highlightedTimePosition / totalDuration) * 100}%`,
+                    left: `${(highlightedTimePosition ?? 0) / (totalDuration || 1) * 100}%`,
                   }}
                 />
               )}
@@ -603,6 +681,7 @@ export default function QADashboard() {
               </SelectContent>
             </Select>
           </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
@@ -612,18 +691,42 @@ export default function QADashboard() {
               <h2 className="text-sm font-medium text-muted-foreground">
                 Call Transcript
               </h2>
-              <div className="relative w-56">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search transcript..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-8 text-sm"
-                />
-              </div>
+              {file && !isLoading && (
+                <div className="relative w-56">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search transcript..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-8 text-sm"
+                  />
+                </div>
+              )}
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-2">
+              {!file ? (
+                <div className="flex flex-col items-center justify-center gap-3 h-full min-h-[200px] text-center">
+                  <Upload className="w-10 h-10 text-muted-foreground/50" />
+                  <p className="text-sm text-muted-foreground">
+                    No data
+                  </p>
+                  <p className="text-xs text-muted-foreground/80">
+                    Upload a call to analyze
+                  </p>
+                </div>
+              ) : isLoading ? (
+                <div className="flex flex-col items-center justify-center gap-3 h-full min-h-[200px] text-center">
+                  <Spinner className="w-10 h-10 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Analyzing call...
+                  </p>
+                  <p className="text-xs text-muted-foreground/80">
+                    Generating transcript and insights
+                  </p>
+                </div>
+              ) : (
+              <>
               {filteredTranscript.map((line) => {
                 const isGood = goodMoments.some((m) => m.lineId === line.id);
                 const isBad = badMoments.some((m) => m.lineId === line.id);
@@ -688,11 +791,35 @@ export default function QADashboard() {
                   </div>
                 );
               })}
+              </>
+              )}
             </div>
           </div>
 
           {/* Analysis Columns */}
           <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
+            {!file ? (
+              <div className="flex flex-col items-center justify-center gap-3 flex-1 min-h-[200px] text-center py-8">
+                <Upload className="w-10 h-10 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">
+                  No data
+                </p>
+                <p className="text-xs text-muted-foreground/80">
+                  Upload a call to analyze
+                </p>
+              </div>
+            ) : isLoading ? (
+              <div className="flex flex-col items-center justify-center gap-3 flex-1 min-h-[200px] text-center py-8">
+                <Spinner className="w-10 h-10 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Analyzing call...
+                </p>
+                <p className="text-xs text-muted-foreground/80">
+                  Generating transcript and insights
+                </p>
+              </div>
+            ) : (
+            <>
             {/* Good */}
             <Collapsible
               open={goodOpen}
@@ -948,8 +1075,37 @@ export default function QADashboard() {
                 </div>
               </CollapsibleContent>
             </Collapsible>
+            </>
+            )}
           </div>
         </div>
+        {file &&
+          (file.type.startsWith("video/") ? (
+            <video
+              ref={mediaRef as React.RefObject<HTMLVideoElement>}
+              className="hidden"
+              onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              onLoadedMetadata={(e) =>
+                setTotalDuration(e.currentTarget.duration)
+              }
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+              playsInline
+            />
+          ) : (
+            <audio
+              ref={mediaRef as React.RefObject<HTMLAudioElement>}
+              className="hidden"
+              onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+              onLoadedMetadata={(e) =>
+                setTotalDuration(e.currentTarget.duration)
+              }
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+            />
+          ))}
       </div>
     </div>
   );

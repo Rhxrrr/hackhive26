@@ -306,6 +306,8 @@ export default function QADashboard() {
 
   const [totalDuration, setTotalDuration] = useState(1);
   const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [waveformData, setWaveformData] = useState<number[]>([]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -355,6 +357,79 @@ export default function QADashboard() {
     if (!mediaRef.current || !file) return;
     mediaRef.current.playbackRate = parseFloat(playbackSpeed);
   }, [playbackSpeed, file]);
+
+  // Generate waveform data from audio/video file
+  useEffect(() => {
+    if (!file) {
+      setWaveformData([]);
+      return;
+    }
+    let cancelled = false;
+    const audioContext = new AudioContext();
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        if (cancelled) return;
+        const channelData = audioBuffer.getChannelData(0);
+        const samples = 200;
+        const blockSize = Math.floor(channelData.length / samples);
+        const filteredData: number[] = [];
+        for (let i = 0; i < samples; i++) {
+          const start = blockSize * i;
+          let sum = 0;
+          for (let j = 0; j < blockSize; j++) {
+            sum += Math.abs(channelData[start + j] || 0);
+          }
+          filteredData.push(sum / blockSize);
+        }
+        const maxVal = Math.max(...filteredData) || 1;
+        const normalized = filteredData.map((val) => val / maxVal);
+        if (!cancelled) setWaveformData(normalized);
+      } catch {
+        if (!cancelled) setWaveformData(Array.from({ length: 200 }, () => 0.2 + Math.random() * 0.6));
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return () => {
+      cancelled = true;
+      audioContext.close();
+    };
+  }, [file]);
+
+  // Draw sound-bar waveform on canvas
+  useEffect(() => {
+    const canvas = waveformCanvasRef.current;
+    if (!canvas || waveformData.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const duration = totalDuration || 1;
+    const progressWidth = (currentTime / duration) * rect.width;
+    const centerY = rect.height / 2;
+    const maxBarHeight = rect.height * 0.5;
+    const barSlotWidth = rect.width / waveformData.length;
+    const barGap = 1;
+    const barWidth = Math.max(1, barSlotWidth - barGap);
+    const playedColor = "#E8E8E8";
+    const unplayedColor = "#555555";
+
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    waveformData.forEach((val, i) => {
+      const barHeight = val * maxBarHeight;
+      const x = i * barSlotWidth;
+      const isPlayed = x < progressWidth;
+      ctx.fillStyle = isPlayed ? playedColor : unplayedColor;
+      ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
+    });
+  }, [waveformData, currentTime, totalDuration]);
 
   const parseTimeToSeconds = (time: string) => {
     const parts = time.split(":");
@@ -585,12 +660,10 @@ export default function QADashboard() {
               {formatTime(currentTime)}
             </span>
             <div className="flex-1 relative">
-              <div className="h-2 bg-secondary rounded-full">
-                <div
-                  className="h-2 bg-foreground/50 rounded-full transition-all"
-                  style={{ width: `${(currentTime / (totalDuration || 1)) * 100}%` }}
-                />
-              </div>
+              <canvas
+                ref={waveformCanvasRef}
+                className="w-full h-20 rounded-xl bg-card"
+              />
               <input
                 type="range"
                 min="0"
@@ -601,9 +674,15 @@ export default function QADashboard() {
                   setCurrentTime(v);
                   if (mediaRef.current) mediaRef.current.currentTime = v;
                 }}
-                className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
-              {/* Markers on timeline - purple (uncertain) only */}
+              {file && (
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none"
+                  style={{ left: `${(currentTime / (totalDuration || 1)) * 100}%` }}
+                />
+              )}
+              {/* Markers on timeline - purple (uncertain) only - below waveform */}
               {uncertainMoments.map((m, i) => {
                 const timeInSeconds =
                   parseInt(m.time.split(":")[0]) * 60 +
@@ -611,7 +690,7 @@ export default function QADashboard() {
                 return (
                   <div
                     key={`uncertain-${i}`}
-                    className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-150 transition-transform"
+                    className="absolute top-full mt-0.5 -translate-x-1/2 z-10 cursor-pointer hover:scale-125 transition-transform"
                     style={{
                       left: `${(timeInSeconds / (totalDuration || 1)) * 100}%`,
                     }}
@@ -632,7 +711,7 @@ export default function QADashboard() {
               {/* Highlight indicator */}
               {highlightedTimePosition !== null && (
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white/30 rounded-full animate-ping"
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white/30 rounded-full animate-ping z-10"
                   style={{
                     left: `${(highlightedTimePosition ?? 0) / (totalDuration || 1) * 100}%`,
                   }}

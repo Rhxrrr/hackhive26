@@ -1180,16 +1180,19 @@ export default function QADashboard() {
             <>
             {/* Good */}
             <Collapsible
-              open={goodOpen}
-              onOpenChange={setGoodOpen}
+              open={momentsGood.length > 0 ? goodOpen : false}
+              onOpenChange={(open) => {
+                if (momentsGood.length === 0 && open) return;
+                setGoodOpen(open);
+              }}
               className={cn(
                 "bg-emerald-500/10 border border-emerald-500/20 rounded-xl overflow-hidden flex flex-col",
-                goodOpen ? "flex-1 min-h-0" : "shrink-0"
+                (momentsGood.length > 0 ? goodOpen : false) ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
               <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-emerald-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
-                  className={`w-4 h-4 text-emerald-500 transition-transform ${goodOpen ? "" : "-rotate-90"}`}
+                  className={`w-4 h-4 text-emerald-500 transition-transform ${(momentsGood.length > 0 ? goodOpen : false) ? "" : "-rotate-90"}`}
                 />
                 <ArrowUp className="w-5 h-5 text-emerald-500" />
                 <h3 className="font-medium text-emerald-400">Good</h3>
@@ -1307,16 +1310,19 @@ export default function QADashboard() {
 
             {/* Bad */}
             <Collapsible
-              open={badOpen}
-              onOpenChange={setBadOpen}
+              open={momentsBad.length > 0 ? badOpen : false}
+              onOpenChange={(open) => {
+                if (momentsBad.length === 0 && open) return;
+                setBadOpen(open);
+              }}
               className={cn(
                 "bg-red-500/10 border border-red-500/20 rounded-xl overflow-hidden flex flex-col",
-                badOpen ? "flex-1 min-h-0" : "shrink-0"
+                (momentsBad.length > 0 ? badOpen : false) ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
               <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-red-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
-                  className={`w-4 h-4 text-red-500 transition-transform ${badOpen ? "" : "-rotate-90"}`}
+                  className={`w-4 h-4 text-red-500 transition-transform ${(momentsBad.length > 0 ? badOpen : false) ? "" : "-rotate-90"}`}
                 />
                 <ArrowDown className="w-5 h-5 text-red-500" />
                 <h3 className="font-medium text-red-400">Bad</h3>
@@ -1434,16 +1440,19 @@ export default function QADashboard() {
 
             {/* Needs Improvement */}
             <Collapsible
-              open={improvementOpen}
-              onOpenChange={setImprovementOpen}
+              open={momentsImprovement.length > 0 ? improvementOpen : false}
+              onOpenChange={(open) => {
+                if (momentsImprovement.length === 0 && open) return;
+                setImprovementOpen(open);
+              }}
               className={cn(
-                "bg-yellow-500/10 border border-yellow-500/25 rounded-xl overflow-hidden flex flex-col",
-                improvementOpen ? "flex-1 min-h-0" : "shrink-0"
+                "bg-amber-500/10 border border-amber-500/20 rounded-xl overflow-hidden flex flex-col",
+                (momentsImprovement.length > 0 ? improvementOpen : false) ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
               <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-amber-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
-                  className={`w-4 h-4 text-yellow-500 transition-transform ${improvementOpen ? "" : "-rotate-90"}`}
+                  className={`w-4 h-4 text-amber-500 transition-transform ${(momentsImprovement.length > 0 ? improvementOpen : false) ? "" : "-rotate-90"}`}
                 />
                 <AlertTriangle className="w-5 h-5 text-yellow-500" />
                 <h3 className="font-medium text-yellow-400">
@@ -1563,16 +1572,19 @@ export default function QADashboard() {
 
             {/* Uncertain */}
             <Collapsible
-              open={uncertainOpen}
-              onOpenChange={setUncertainOpen}
+              open={momentsUncertain.length > 0 ? uncertainOpen : false}
+              onOpenChange={(open) => {
+                if (momentsUncertain.length === 0 && open) return;
+                setUncertainOpen(open);
+              }}
               className={cn(
                 "bg-purple-500/10 border border-purple-500/20 rounded-xl overflow-hidden flex flex-col",
-                uncertainOpen ? "flex-1 min-h-0" : "shrink-0"
+                (momentsUncertain.length > 0 ? uncertainOpen : false) ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
               <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-purple-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
-                  className={`w-4 h-4 text-purple-500 transition-transform ${uncertainOpen ? "" : "-rotate-90"}`}
+                  className={`w-4 h-4 text-purple-500 transition-transform ${(momentsUncertain.length > 0 ? uncertainOpen : false) ? "" : "-rotate-90"}`}
                 />
                 <div className="w-5 h-5 flex items-center justify-center">
                   <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[10px] border-l-transparent border-r-transparent border-b-purple-500 relative">

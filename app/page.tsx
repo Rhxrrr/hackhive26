@@ -17,6 +17,8 @@ import {
   VolumeX,
   ChevronDown,
   HelpCircle,
+  MessageSquare,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +40,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -256,6 +265,9 @@ const uncertainMoments = [
   },
 ];
 
+type Moment = (typeof goodMoments)[number];
+type MomentCategory = "good" | "bad" | "improvement" | "uncertain";
+
 const fullReport = {
   callId: "CALL-2024-01-15-0847",
   agent: "Sarah Mitchell",
@@ -308,6 +320,48 @@ export default function QADashboard() {
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [mediaObjectUrl, setMediaObjectUrl] = useState<string | null>(null);
+
+  const [userNotes, setUserNotes] = useState<Record<number, string>>({});
+  const [noteDialogLineId, setNoteDialogLineId] = useState<number | null>(null);
+
+  const parseTimeToSeconds = (time: string) => {
+    const parts = time.split(":");
+    return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+  };
+  const sortByTime = (a: Moment, b: Moment) =>
+    parseTimeToSeconds(a.time) - parseTimeToSeconds(b.time);
+
+  const [momentsGood, setMomentsGood] = useState<Moment[]>(() =>
+    [...goodMoments].sort(sortByTime)
+  );
+  const [momentsBad, setMomentsBad] = useState<Moment[]>(() =>
+    [...badMoments].sort(sortByTime)
+  );
+  const [momentsImprovement, setMomentsImprovement] = useState<Moment[]>(() =>
+    [...needsImprovementMoments].sort(sortByTime)
+  );
+  const [momentsUncertain, setMomentsUncertain] = useState<Moment[]>(() =>
+    [...uncertainMoments].sort(sortByTime)
+  );
+
+  const moveMoment = (moment: Moment, from: MomentCategory, to: MomentCategory) => {
+    if (from === to) return;
+    if (from === "good")
+      setMomentsGood((p) => p.filter((m) => m.lineId !== moment.lineId));
+    else if (from === "bad")
+      setMomentsBad((p) => p.filter((m) => m.lineId !== moment.lineId));
+    else if (from === "improvement")
+      setMomentsImprovement((p) => p.filter((m) => m.lineId !== moment.lineId));
+    else setMomentsUncertain((p) => p.filter((m) => m.lineId !== moment.lineId));
+
+    if (to === "good")
+      setMomentsGood((p) => [...p, moment].sort(sortByTime));
+    else if (to === "bad")
+      setMomentsBad((p) => [...p, moment].sort(sortByTime));
+    else if (to === "improvement")
+      setMomentsImprovement((p) => [...p, moment].sort(sortByTime));
+    else setMomentsUncertain((p) => [...p, moment].sort(sortByTime));
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -468,11 +522,6 @@ export default function QADashboard() {
     });
   }, [waveformData, currentTime, totalDuration, highlightedMomentType, highlightedTimePosition, isLoading]);
 
-  const parseTimeToSeconds = (time: string) => {
-    const parts = time.split(":");
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-  };
-
   const scrollToLine = (
     lineId: number,
     time?: string,
@@ -626,7 +675,7 @@ export default function QADashboard() {
 
     // 3. Good Moments
     addTitle("Good Moments");
-    goodMoments.forEach((m) => {
+    momentsGood.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
       y += 2;
@@ -634,7 +683,7 @@ export default function QADashboard() {
 
     // 4. Bad Moments
     addTitle("Bad Moments");
-    badMoments.forEach((m) => {
+    momentsBad.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
       y += 2;
@@ -642,7 +691,7 @@ export default function QADashboard() {
 
     // 5. Needs Improvement
     addTitle("Needs Improvement");
-    needsImprovementMoments.forEach((m) => {
+    momentsImprovement.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
       y += 2;
@@ -650,7 +699,7 @@ export default function QADashboard() {
 
     // 6. Uncertain Moments
     addTitle("Uncertain (Manual Review Recommended)");
-    uncertainMoments.forEach((m) => {
+    momentsUncertain.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
       y += 2;
@@ -876,6 +925,41 @@ export default function QADashboard() {
                   style={{ left: `${(currentTime / (totalDuration || 1)) * 100}%` }}
                 />
               )}
+              {/* Markers on timeline - purple (uncertain) only - below waveform */}
+              {momentsUncertain.map((m, i) => {
+                const timeInSeconds =
+                  parseInt(m.time.split(":")[0]) * 60 +
+                  parseInt(m.time.split(":")[1]);
+                return (
+                  <div
+                    key={`uncertain-${i}`}
+                    className="absolute top-full mt-0.5 -translate-x-1/2 z-10 cursor-pointer hover:scale-125 transition-transform"
+                    style={{
+                      left: `${(timeInSeconds / (totalDuration || 1)) * 100}%`,
+                    }}
+                    onClick={() => {
+                      setCurrentTime(timeInSeconds);
+                      scrollToLine(m.lineId, m.time, "uncertain");
+                    }}
+                    title={m.message}
+                  >
+                    <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[15px] border-l-transparent border-r-transparent border-b-purple-500 relative">
+                      <span className="absolute -bottom-[17px] left-1/2 -translate-x-1/2 text-[9px] font-bold text-purple-500">
+                        !
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Highlight indicator */}
+              {highlightedTimePosition !== null && (
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white/30 rounded-full animate-ping z-10"
+                  style={{
+                    left: `${(highlightedTimePosition ?? 0) / (totalDuration || 1) * 100}%`,
+                  }}
+                />
+              )}
             </div>
             <span className="text-sm font-mono text-muted-foreground w-12">
               {formatTime(totalDuration)}
@@ -980,12 +1064,12 @@ export default function QADashboard() {
               ) : (
               <>
               {transcript.map((line) => {
-                const isGood = goodMoments.some((m) => m.lineId === line.id);
-                const isBad = badMoments.some((m) => m.lineId === line.id);
-                const isImprovement = needsImprovementMoments.some(
+                const isGood = momentsGood.some((m) => m.lineId === line.id);
+                const isBad = momentsBad.some((m) => m.lineId === line.id);
+                const isImprovement = momentsImprovement.some(
                   (m) => m.lineId === line.id,
                 );
-                const isUncertain = uncertainMoments.some(
+                const isUncertain = momentsUncertain.some(
                   (m) => m.lineId === line.id,
                 );
                 const isAgent = line.speaker === "agent";
@@ -1088,13 +1172,13 @@ export default function QADashboard() {
                 <ArrowUp className="w-5 h-5 text-emerald-500" />
                 <h3 className="font-medium text-emerald-400">Good</h3>
                 <span className="ml-auto text-xs text-emerald-500/70 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                  {goodMoments.length} moments
+                  {momentsGood.length} moments
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
-                  {goodMoments.map((moment, i) => (
-                    <div key={i} className="space-y-1">
+                  {momentsGood.map((moment, i) => (
+                    <div key={moment.lineId} className="space-y-1">
                       <button
                         onClick={() => scrollToLine(moment.lineId, moment.time, "good")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors group"
@@ -1106,28 +1190,64 @@ export default function QADashboard() {
                           {moment.message}
                         </span>
                       </button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="ml-2 h-6 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                          >
-                            <BookOpen className="w-3 h-3 mr-1" />
-                            Rubric {moment.rubricSection}: {moment.rubric}
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle className="text-emerald-400">
-                              Section {moment.rubricSection}: {moment.rubric}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
-                            {moment.rubricDescription}
-                          </p>
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex items-center gap-1 ml-2 flex-wrap">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                          onClick={() => setNoteDialogLineId(moment.lineId)}
+                          title="Add note"
+                        >
+                          <MessageSquare
+                            className={cn("w-3.5 h-3.5", userNotes[moment.lineId] && "fill-amber-500/50 text-amber-400")}
+                          />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                              title="Move to different category"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "good", "bad")}>
+                              Move to Bad
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "good", "improvement")}>
+                              Move to Needs Improvement
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "good", "uncertain")}>
+                              Move to Uncertain
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                            >
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              Rubric {moment.rubricSection}: {moment.rubric}
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle className="text-emerald-400">
+                                Section {moment.rubricSection}: {moment.rubric}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                              {moment.rubricDescription}
+                            </p>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1150,13 +1270,13 @@ export default function QADashboard() {
                 <ArrowDown className="w-5 h-5 text-red-500" />
                 <h3 className="font-medium text-red-400">Bad</h3>
                 <span className="ml-auto text-xs text-red-500/70 bg-red-500/10 px-2 py-0.5 rounded-full">
-                  {badMoments.length} moments
+                  {momentsBad.length} moments
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
-                  {badMoments.map((moment, i) => (
-                    <div key={i} className="space-y-1">
+                  {momentsBad.map((moment, i) => (
+                    <div key={moment.lineId} className="space-y-1">
                       <button
                         onClick={() => scrollToLine(moment.lineId, moment.time, "bad")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-red-500/10 transition-colors group"
@@ -1168,28 +1288,64 @@ export default function QADashboard() {
                           {moment.message}
                         </span>
                       </button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="ml-2 h-6 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                          >
-                            <BookOpen className="w-3 h-3 mr-1" />
-                            Rubric {moment.rubricSection}: {moment.rubric}
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle className="text-red-400">
-                              Section {moment.rubricSection}: {moment.rubric}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
-                            {moment.rubricDescription}
-                          </p>
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex items-center gap-1 ml-2 flex-wrap">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          onClick={() => setNoteDialogLineId(moment.lineId)}
+                          title="Add note"
+                        >
+                          <MessageSquare
+                            className={cn("w-3.5 h-3.5", userNotes[moment.lineId] && "fill-amber-500/50 text-amber-400")}
+                          />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              title="Move to different category"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "bad", "good")}>
+                              Move to Good
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "bad", "improvement")}>
+                              Move to Needs Improvement
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "bad", "uncertain")}>
+                              Move to Uncertain
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            >
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              Rubric {moment.rubricSection}: {moment.rubric}
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle className="text-red-400">
+                                Section {moment.rubricSection}: {moment.rubric}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                              {moment.rubricDescription}
+                            </p>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1213,14 +1369,14 @@ export default function QADashboard() {
                 <h3 className="font-medium text-yellow-400">
                   Needs Improvement
                 </h3>
-                <span className="ml-auto text-xs text-yellow-600 bg-yellow-500/15 px-2 py-0.5 rounded-full">
-                  {needsImprovementMoments.length} moments
+                <span className="ml-auto text-xs text-amber-500/70 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  {momentsImprovement.length} moments
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
-                  {needsImprovementMoments.map((moment, i) => (
-                    <div key={i} className="space-y-1">
+                  {momentsImprovement.map((moment, i) => (
+                    <div key={moment.lineId} className="space-y-1">
                       <button
                         onClick={() => scrollToLine(moment.lineId, moment.time, "improvement")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-yellow-500/10 transition-colors group"
@@ -1232,28 +1388,64 @@ export default function QADashboard() {
                           {moment.message}
                         </span>
                       </button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="ml-2 h-6 text-xs text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10"
-                          >
-                            <BookOpen className="w-3 h-3 mr-1" />
-                            Rubric {moment.rubricSection}: {moment.rubric}
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle className="text-yellow-400">
-                              Section {moment.rubricSection}: {moment.rubric}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
-                            {moment.rubricDescription}
-                          </p>
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex items-center gap-1 ml-2 flex-wrap">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                          onClick={() => setNoteDialogLineId(moment.lineId)}
+                          title="Add note"
+                        >
+                          <MessageSquare
+                            className={cn("w-3.5 h-3.5", userNotes[moment.lineId] && "fill-amber-500/50 text-amber-400")}
+                          />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                              title="Move to different category"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "improvement", "good")}>
+                              Move to Good
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "improvement", "bad")}>
+                              Move to Bad
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "improvement", "uncertain")}>
+                              Move to Uncertain
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                            >
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              Rubric {moment.rubricSection}: {moment.rubric}
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle className="text-amber-400">
+                                Section {moment.rubricSection}: {moment.rubric}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                              {moment.rubricDescription}
+                            </p>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1282,13 +1474,13 @@ export default function QADashboard() {
                 </div>
                 <h3 className="font-medium text-purple-400">Uncertain</h3>
                 <span className="ml-auto text-xs text-purple-500/70 bg-purple-500/10 px-2 py-0.5 rounded-full">
-                  {uncertainMoments.length} moments
+                  {momentsUncertain.length} moments
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
-                  {uncertainMoments.map((moment, i) => (
-                    <div key={i} className="space-y-1">
+                  {momentsUncertain.map((moment, i) => (
+                    <div key={moment.lineId} className="space-y-1">
                       <button
                         onClick={() => scrollToLine(moment.lineId, moment.time, "uncertain")}
                         className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-purple-500/10 transition-colors group"
@@ -1300,28 +1492,64 @@ export default function QADashboard() {
                           {moment.message}
                         </span>
                       </button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="ml-2 h-6 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                          >
-                            <BookOpen className="w-3 h-3 mr-1" />
-                            Rubric {moment.rubricSection}: {moment.rubric}
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle className="text-purple-400">
-                              Section {moment.rubricSection}: {moment.rubric}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
-                            {moment.rubricDescription}
-                          </p>
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex items-center gap-1 ml-2 flex-wrap">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                          onClick={() => setNoteDialogLineId(moment.lineId)}
+                          title="Add note"
+                        >
+                          <MessageSquare
+                            className={cn("w-3.5 h-3.5", userNotes[moment.lineId] && "fill-amber-500/50 text-amber-400")}
+                          />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                              title="Move to different category"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "uncertain", "good")}>
+                              Move to Good
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "uncertain", "bad")}>
+                              Move to Bad
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => moveMoment(moment, "uncertain", "improvement")}>
+                              Move to Needs Improvement
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                            >
+                              <BookOpen className="w-3 h-3 mr-1" />
+                              Rubric {moment.rubricSection}: {moment.rubric}
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle className="text-purple-400">
+                                Section {moment.rubricSection}: {moment.rubric}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                              {moment.rubricDescription}
+                            </p>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1331,6 +1559,29 @@ export default function QADashboard() {
             )}
           </div>
         </div>
+
+        {/* Note dialog for moments */}
+        <Dialog
+          open={noteDialogLineId !== null}
+          onOpenChange={(o) => !o && setNoteDialogLineId(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add note</DialogTitle>
+            </DialogHeader>
+            <Textarea
+              placeholder="Add your notes for this moment..."
+              value={(noteDialogLineId != null ? userNotes[noteDialogLineId] : "") ?? ""}
+              onChange={(e) => {
+                if (noteDialogLineId == null) return;
+                setUserNotes((p) => ({ ...p, [noteDialogLineId]: e.target.value }));
+              }}
+              className="min-h-24"
+            />
+            <Button onClick={() => setNoteDialogLineId(null)}>Done</Button>
+          </DialogContent>
+        </Dialog>
+
         {file &&
           (file.type.startsWith("video/") ? (
             <video

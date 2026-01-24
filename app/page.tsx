@@ -499,19 +499,172 @@ export default function QADashboard() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const downloadTranscript = () => {
-    const text = transcript
-      .map(
-        (line) => `[${line.time}] ${line.speaker.toUpperCase()}: ${line.text}`,
-      )
-      .join("\n\n");
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "call-transcript.txt";
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadReport = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+    const MARGIN = 20;
+    const PAGE_W = 210;
+    const PAGE_H = 297;
+    const W = PAGE_W - 2 * MARGIN;
+    const LINE = 5.5;
+
+    let y = MARGIN;
+
+    const needPage = () => {
+      if (y > PAGE_H - MARGIN - 15) {
+        doc.addPage();
+        y = MARGIN;
+      }
+    };
+
+    const addTitle = (title: string) => {
+      needPage();
+      y += 6;
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, MARGIN, y);
+      y += LINE + 2;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+    };
+
+    const addBody = (text: string) => {
+      const lines = doc.splitTextToSize(text, W);
+      for (const line of lines) {
+        needPage();
+        doc.text(line, MARGIN, y);
+        y += LINE;
+      }
+    };
+
+    const addBullet = (text: string, indent = 6) => {
+      const lines = doc.splitTextToSize(text, W - indent);
+      for (const line of lines) {
+        needPage();
+        doc.text(line, MARGIN + indent, y);
+        y += LINE;
+      }
+    };
+
+    const scoreColor = (s: number) => {
+      if (s >= 80) return [76, 175, 80] as const;
+      if (s >= 60) return [255, 193, 7] as const;
+      return [244, 67, 54] as const;
+    };
+
+    // 1. Full Report & Quality Score (with visuals)
+    addTitle("Full Report & Quality Score");
+    needPage();
+    doc.text(`Call ID: ${fullReport.callId}`, MARGIN, y); y += LINE;
+    doc.text(`Agent: ${fullReport.agent}`, MARGIN, y); y += LINE;
+    doc.text(`Customer: ${fullReport.customer}`, MARGIN, y); y += LINE;
+    doc.text(`Date: ${fullReport.date}`, MARGIN, y); y += LINE;
+    doc.text(`Duration: ${fullReport.duration}`, MARGIN, y); y += LINE;
+    y += 4;
+
+    // Overall Score — horizontal bar (progress bar)
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Overall Score", MARGIN, y); y += 2;
+    doc.setFont("helvetica", "normal");
+    const barW = W - 32;
+    const barH = 8;
+    needPage();
+    doc.setFillColor(230, 230, 230);
+    doc.rect(MARGIN, y, barW, barH, "F");
+    const [r, g, b] = scoreColor(fullReport.overallScore);
+    doc.setFillColor(r, g, b);
+    doc.rect(MARGIN, y, (fullReport.overallScore / 100) * barW, barH, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${fullReport.overallScore}/100`, MARGIN + barW + 6, y + 5.5);
+    doc.setFont("helvetica", "normal");
+    y += barH + 10;
+
+    // Category Scores — bar chart
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Category Breakdown", MARGIN, y); y += 8;
+    doc.setFont("helvetica", "normal");
+    const labelW = 48;
+    const chartW = 75;
+    const rowH = 8;
+    for (const [cat, score] of Object.entries(fullReport.categoryScores)) {
+      needPage();
+      doc.setFontSize(9);
+      const disp = cat.charAt(0).toUpperCase() + cat.slice(1);
+      doc.text(disp, MARGIN, y + 5);
+      doc.setFillColor(235, 235, 235);
+      doc.rect(MARGIN + labelW, y, chartW, rowH - 2, "F");
+      const [cr, cg, cb] = scoreColor(score);
+      doc.setFillColor(cr, cg, cb);
+      doc.rect(MARGIN + labelW, y, (score / 100) * chartW, rowH - 2, "F");
+      doc.setTextColor(0, 0, 0);
+      doc.text(String(score), MARGIN + labelW + chartW + 4, y + 5);
+      y += rowH + 2;
+    }
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Green: 80+  |  Amber: 60–79  |  Red: <60", MARGIN, y + 2);
+    doc.setTextColor(0, 0, 0);
+    y += 10;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("QA Summary:", MARGIN, y); y += LINE;
+    doc.setFont("helvetica", "normal");
+    addBody(fullReport.summary);
+    y += 4;
+    doc.setFont("helvetica", "bold");
+    doc.text("Recommendations:", MARGIN, y); y += LINE;
+    doc.setFont("helvetica", "normal");
+    fullReport.recommendations.forEach((r) => addBullet("• " + r));
+
+    // 2. AI Generated Summary (conversation)
+    addTitle("AI-Generated Call Summary");
+    addBody(fullReport.conversationSummary);
+
+    // 3. Good Moments
+    addTitle("Good Moments");
+    goodMoments.forEach((m) => {
+      addBullet(`[${m.time}] ${m.message}`);
+      addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
+      y += 2;
+    });
+
+    // 4. Bad Moments
+    addTitle("Bad Moments");
+    badMoments.forEach((m) => {
+      addBullet(`[${m.time}] ${m.message}`);
+      addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
+      y += 2;
+    });
+
+    // 5. Needs Improvement
+    addTitle("Needs Improvement");
+    needsImprovementMoments.forEach((m) => {
+      addBullet(`[${m.time}] ${m.message}`);
+      addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
+      y += 2;
+    });
+
+    // 6. Uncertain Moments
+    addTitle("Uncertain (Manual Review Recommended)");
+    uncertainMoments.forEach((m) => {
+      addBullet(`[${m.time}] ${m.message}`);
+      addBullet(`  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`, 8);
+      y += 2;
+    });
+
+    // 7. Full Transcript (last)
+    addTitle("Full Transcript");
+    transcript.forEach((line) => {
+      const txt = `[${line.time}] ${line.speaker.toUpperCase()}: ${line.text}`;
+      addBody(txt);
+      y += 2;
+    });
+
+    doc.save(`call-report-${fullReport.callId}.pdf`);
   };
 
   return (
@@ -528,9 +681,9 @@ export default function QADashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={downloadTranscript}>
+            <Button variant="outline" size="sm" onClick={downloadReport}>
               <Download className="w-4 h-4 mr-2" />
-              Download Transcript
+              Download
             </Button>
             <Dialog>
               <DialogTrigger asChild>

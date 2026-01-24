@@ -543,8 +543,8 @@ export default function QADashboard() {
                     }}
                     title={m.message}
                   >
-                    <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-l-transparent border-r-transparent border-b-purple-500 relative">
-                      <span className="absolute -bottom-[10px] left-1/2 -translate-x-1/2 text-[6px] font-bold text-purple-500">
+                    <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[15px] border-l-transparent border-r-transparent border-b-purple-500 relative">
+                      <span className="absolute -bottom-[17px] left-1/2 -translate-x-1/2 text-[9px] font-bold text-purple-500">
                         !
                       </span>
                     </div>

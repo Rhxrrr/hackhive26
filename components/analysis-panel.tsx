@@ -147,7 +147,7 @@ export function AnalysisPanel({
               key={index}
               onClick={() => onMarkerSelect(marker)}
               className={cn(
-                "w-full text-left p-3 rounded-lg border transition-colors",
+                "w-full text-left p-3 rounded-lg border transition-colors cursor-pointer",
                 selectedMarker === marker
                   ? "bg-secondary border-foreground/20"
                   : "bg-card border-border hover:bg-secondary/50"

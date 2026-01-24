@@ -76,7 +76,7 @@ export function UploadZone({ onFileSelect, selectedFile, onClear }: UploadZonePr
           </div>
           <button
             onClick={onClear}
-            className="p-1.5 rounded-md hover:bg-secondary transition-colors"
+            className="p-1.5 rounded-md hover:bg-secondary transition-colors cursor-pointer"
           >
             <X className="h-4 w-4 text-muted-foreground" />
           </button>

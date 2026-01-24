@@ -323,6 +323,8 @@ export default function QADashboard() {
 
   const [userNotes, setUserNotes] = useState<Record<number, string>>({});
   const [noteDialogLineId, setNoteDialogLineId] = useState<number | null>(null);
+  const [editingMessageKey, setEditingMessageKey] = useState<string | null>(null);
+  const [editingMessageDraft, setEditingMessageDraft] = useState("");
 
   const parseTimeToSeconds = (time: string) => {
     const parts = time.split(":");
@@ -361,6 +363,26 @@ export default function QADashboard() {
     else if (to === "improvement")
       setMomentsImprovement((p) => [...p, moment].sort(sortByTime));
     else setMomentsUncertain((p) => [...p, moment].sort(sortByTime));
+  };
+
+  const updateMomentMessage = (cat: MomentCategory, index: number, newMessage: string) => {
+    if (cat === "good") setMomentsGood((p) => p.map((m, i) => (i === index ? { ...m, message: newMessage } : m)));
+    else if (cat === "bad") setMomentsBad((p) => p.map((m, i) => (i === index ? { ...m, message: newMessage } : m)));
+    else if (cat === "improvement") setMomentsImprovement((p) => p.map((m, i) => (i === index ? { ...m, message: newMessage } : m)));
+    else setMomentsUncertain((p) => p.map((m, i) => (i === index ? { ...m, message: newMessage } : m)));
+  };
+
+  const commitEdit = () => {
+    if (!editingMessageKey) return;
+    const [cat, idx] = editingMessageKey.split("|");
+    updateMomentMessage(cat as MomentCategory, parseInt(idx, 10), editingMessageDraft);
+    setEditingMessageKey(null);
+    setEditingMessageDraft("");
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageKey(null);
+    setEditingMessageDraft("");
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1165,7 +1187,7 @@ export default function QADashboard() {
                 goodOpen ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-emerald-500/5 transition-colors shrink-0">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-emerald-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
                   className={`w-4 h-4 text-emerald-500 transition-transform ${goodOpen ? "" : "-rotate-90"}`}
                 />
@@ -1178,18 +1200,47 @@ export default function QADashboard() {
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {momentsGood.map((moment, i) => (
-                    <div key={moment.lineId} className="space-y-1">
-                      <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time, "good")}
-                        className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors group"
-                      >
-                        <span className="text-xs font-mono text-emerald-500 bg-emerald-500/20 px-1.5 py-0.5 rounded shrink-0">
+                    <div key={`${moment.lineId}-${moment.rubricSection}-${i}`} className="space-y-1">
+                      <div className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors group">
+                        <button
+                          onClick={() => scrollToLine(moment.lineId, moment.time, "good")}
+                          className="text-xs font-mono text-emerald-500 bg-emerald-500/20 px-1.5 py-0.5 rounded shrink-0 hover:bg-emerald-500/30 cursor-pointer"
+                        >
                           {moment.time}
-                        </span>
-                        <span className="text-sm text-emerald-100/80 group-hover:text-emerald-100">
-                          {moment.message}
-                        </span>
-                      </button>
+                        </button>
+                        {editingMessageKey === `good|${i}` ? (
+                          <Textarea
+                            autoFocus
+                            value={editingMessageDraft}
+                            onChange={(e) => setEditingMessageDraft(e.target.value)}
+                            onBlur={commitEdit}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") cancelEdit();
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                commitEdit();
+                              }
+                            }}
+                            className="flex-1 min-w-0 text-sm text-emerald-100 bg-emerald-500/10 border-emerald-500/30 rounded py-1.5 px-2 resize-none"
+                            rows={2}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span
+                            onDoubleClick={() => {
+                              setEditingMessageKey(`good|${i}`);
+                              setEditingMessageDraft(moment.message);
+                            }}
+                            className={cn(
+                              "flex-1 min-w-0 text-sm cursor-text min-h-5 block",
+                              moment.message ? "text-emerald-100/80 group-hover:text-emerald-100" : "text-emerald-400/50 italic"
+                            )}
+                            title="Double-click to edit"
+                          >
+                            {moment.message || "Add reasoning…"}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1 ml-2 flex-wrap">
                         <Button
                           variant="ghost"
@@ -1263,7 +1314,7 @@ export default function QADashboard() {
                 badOpen ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-red-500/5 transition-colors shrink-0">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-red-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
                   className={`w-4 h-4 text-red-500 transition-transform ${badOpen ? "" : "-rotate-90"}`}
                 />
@@ -1276,18 +1327,47 @@ export default function QADashboard() {
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {momentsBad.map((moment, i) => (
-                    <div key={moment.lineId} className="space-y-1">
-                      <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time, "bad")}
-                        className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-red-500/10 transition-colors group"
-                      >
-                        <span className="text-xs font-mono text-red-500 bg-red-500/20 px-1.5 py-0.5 rounded shrink-0">
+                    <div key={`${moment.lineId}-${moment.rubricSection}-${i}`} className="space-y-1">
+                      <div className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-red-500/10 transition-colors group">
+                        <button
+                          onClick={() => scrollToLine(moment.lineId, moment.time, "bad")}
+                          className="text-xs font-mono text-red-500 bg-red-500/20 px-1.5 py-0.5 rounded shrink-0 hover:bg-red-500/30 cursor-pointer"
+                        >
                           {moment.time}
-                        </span>
-                        <span className="text-sm text-red-100/80 group-hover:text-red-100">
-                          {moment.message}
-                        </span>
-                      </button>
+                        </button>
+                        {editingMessageKey === `bad|${i}` ? (
+                          <Textarea
+                            autoFocus
+                            value={editingMessageDraft}
+                            onChange={(e) => setEditingMessageDraft(e.target.value)}
+                            onBlur={commitEdit}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") cancelEdit();
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                commitEdit();
+                              }
+                            }}
+                            className="flex-1 min-w-0 text-sm text-red-100 bg-red-500/10 border-red-500/30 rounded py-1.5 px-2 resize-none"
+                            rows={2}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span
+                            onDoubleClick={() => {
+                              setEditingMessageKey(`bad|${i}`);
+                              setEditingMessageDraft(moment.message);
+                            }}
+                            className={cn(
+                              "flex-1 min-w-0 text-sm cursor-text min-h-5 block",
+                              moment.message ? "text-red-100/80 group-hover:text-red-100" : "text-red-400/50 italic"
+                            )}
+                            title="Double-click to edit"
+                          >
+                            {moment.message || "Add reasoning…"}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1 ml-2 flex-wrap">
                         <Button
                           variant="ghost"
@@ -1361,7 +1441,7 @@ export default function QADashboard() {
                 improvementOpen ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-yellow-500/5 transition-colors shrink-0">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-amber-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
                   className={`w-4 h-4 text-yellow-500 transition-transform ${improvementOpen ? "" : "-rotate-90"}`}
                 />
@@ -1376,18 +1456,47 @@ export default function QADashboard() {
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {momentsImprovement.map((moment, i) => (
-                    <div key={moment.lineId} className="space-y-1">
-                      <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time, "improvement")}
-                        className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-yellow-500/10 transition-colors group"
-                      >
-                        <span className="text-xs font-mono text-yellow-600 bg-yellow-400/30 px-1.5 py-0.5 rounded shrink-0">
+                    <div key={`${moment.lineId}-${moment.rubricSection}-${i}`} className="space-y-1">
+                      <div className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-amber-500/10 transition-colors group">
+                        <button
+                          onClick={() => scrollToLine(moment.lineId, moment.time, "improvement")}
+                          className="text-xs font-mono text-amber-500 bg-amber-500/20 px-1.5 py-0.5 rounded shrink-0 hover:bg-amber-500/30 cursor-pointer"
+                        >
                           {moment.time}
-                        </span>
-                        <span className="text-sm text-yellow-100/90 group-hover:text-yellow-100">
-                          {moment.message}
-                        </span>
-                      </button>
+                        </button>
+                        {editingMessageKey === `improvement|${i}` ? (
+                          <Textarea
+                            autoFocus
+                            value={editingMessageDraft}
+                            onChange={(e) => setEditingMessageDraft(e.target.value)}
+                            onBlur={commitEdit}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") cancelEdit();
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                commitEdit();
+                              }
+                            }}
+                            className="flex-1 min-w-0 text-sm text-amber-100 bg-amber-500/10 border-amber-500/30 rounded py-1.5 px-2 resize-none"
+                            rows={2}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span
+                            onDoubleClick={() => {
+                              setEditingMessageKey(`improvement|${i}`);
+                              setEditingMessageDraft(moment.message);
+                            }}
+                            className={cn(
+                              "flex-1 min-w-0 text-sm cursor-text min-h-5 block",
+                              moment.message ? "text-amber-100/80 group-hover:text-amber-100" : "text-amber-400/50 italic"
+                            )}
+                            title="Double-click to edit"
+                          >
+                            {moment.message || "Add reasoning…"}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1 ml-2 flex-wrap">
                         <Button
                           variant="ghost"
@@ -1461,7 +1570,7 @@ export default function QADashboard() {
                 uncertainOpen ? "flex-1 min-h-0" : "shrink-0"
               )}
             >
-              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-purple-500/5 transition-colors shrink-0">
+              <CollapsibleTrigger className="flex items-center gap-2 p-4 w-full hover:bg-purple-500/5 transition-colors shrink-0 cursor-pointer">
                 <ChevronDown
                   className={`w-4 h-4 text-purple-500 transition-transform ${uncertainOpen ? "" : "-rotate-90"}`}
                 />
@@ -1480,18 +1589,47 @@ export default function QADashboard() {
               <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
                 <div className="space-y-2">
                   {momentsUncertain.map((moment, i) => (
-                    <div key={moment.lineId} className="space-y-1">
-                      <button
-                        onClick={() => scrollToLine(moment.lineId, moment.time, "uncertain")}
-                        className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-purple-500/10 transition-colors group"
-                      >
-                        <span className="text-xs font-mono text-purple-500 bg-purple-500/20 px-1.5 py-0.5 rounded shrink-0">
+                    <div key={`${moment.lineId}-${moment.rubricSection}-${i}`} className="space-y-1">
+                      <div className="w-full text-left flex items-start gap-3 p-2 rounded-lg hover:bg-purple-500/10 transition-colors group">
+                        <button
+                          onClick={() => scrollToLine(moment.lineId, moment.time, "uncertain")}
+                          className="text-xs font-mono text-purple-500 bg-purple-500/20 px-1.5 py-0.5 rounded shrink-0 hover:bg-purple-500/30 cursor-pointer"
+                        >
                           {moment.time}
-                        </span>
-                        <span className="text-sm text-purple-100/80 group-hover:text-purple-100">
-                          {moment.message}
-                        </span>
-                      </button>
+                        </button>
+                        {editingMessageKey === `uncertain|${i}` ? (
+                          <Textarea
+                            autoFocus
+                            value={editingMessageDraft}
+                            onChange={(e) => setEditingMessageDraft(e.target.value)}
+                            onBlur={commitEdit}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") cancelEdit();
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                commitEdit();
+                              }
+                            }}
+                            className="flex-1 min-w-0 text-sm text-purple-100 bg-purple-500/10 border-purple-500/30 rounded py-1.5 px-2 resize-none"
+                            rows={2}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span
+                            onDoubleClick={() => {
+                              setEditingMessageKey(`uncertain|${i}`);
+                              setEditingMessageDraft(moment.message);
+                            }}
+                            className={cn(
+                              "flex-1 min-w-0 text-sm cursor-text min-h-5 block",
+                              moment.message ? "text-purple-100/80 group-hover:text-purple-100" : "text-purple-400/50 italic"
+                            )}
+                            title="Double-click to edit"
+                          >
+                            {moment.message || "Add reasoning…"}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1 ml-2 flex-wrap">
                         <Button
                           variant="ghost"

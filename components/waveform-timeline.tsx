@@ -228,7 +228,7 @@ export function WaveformTimeline({
         <button
           onClick={togglePlayback}
           disabled={!audioUrl}
-          className="p-2.5 rounded-full bg-foreground text-background hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2.5 rounded-full bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isPlaying ? (
             <Pause className="h-5 w-5" />
@@ -239,7 +239,7 @@ export function WaveformTimeline({
         <button
           onClick={handleReset}
           disabled={!audioUrl}
-          className="p-2 rounded-full bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2 rounded-full bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RotateCcw className="h-4 w-4" />
         </button>
@@ -263,7 +263,7 @@ export function WaveformTimeline({
             onClick={(e) => handleMarkerClickInternal(marker, e)}
             style={{ left: `${getMarkerPosition(marker.timestamp)}%` }}
             className={cn(
-              "absolute top-0 -translate-x-1/2 transition-transform hover:scale-110",
+              "absolute top-0 -translate-x-1/2 transition-transform hover:scale-110 cursor-pointer",
               selectedMarker === marker && "scale-125"
             )}
           >

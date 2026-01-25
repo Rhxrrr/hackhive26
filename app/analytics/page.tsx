@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction }
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts"
 import Link from "next/link"
-import { TrendingUp, AlertTriangle, ExternalLink, ArrowRight, Brain } from "lucide-react"
+import { TrendingUp, AlertTriangle, ExternalLink, ArrowRight, Brain, ArrowLeft } from "lucide-react"
 import { AppSidebar } from "@/components/app-sidebar"
 
 const agents = [
@@ -148,6 +148,15 @@ export default function AgentPerformancePage() {
         {/* Header */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
+            {isAgentView && (
+              <Link
+                href="/live"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Call Center
+              </Link>
+            )}
             <h1 className="text-2xl font-bold text-foreground">Agent Performance</h1>
             <p className="text-sm text-muted-foreground">Track QA scores and coaching insights</p>
           </div>

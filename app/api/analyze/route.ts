@@ -1,49 +1,237 @@
-import { generateText, Output } from "ai"
-import { z } from "zod"
+import { generateText, Output } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { z } from "zod";
+import * as _X from "xlsx";
+const XLSX = (_X as { default?: typeof _X }).default ?? _X;
 
 const analysisSchema = z.object({
-  overallScore: z.number().describe("Overall call quality score from 0-100"),
-  summary: z.string().describe("Brief summary of the call performance for QA/feedback"),
-  conversationSummary: z.string().describe("Brief summary of what was discussed in the call—the actual conversation content, topics, and outcome. This is a neutral summary of the call for someone who wants to know what happened, not feedback for the agent."),
-  markers: z.array(
-    z.object({
-      timestamp: z.number().describe("Timestamp in seconds where this event occurs"),
-      type: z.enum(["good", "bad", "uncertain"]).describe("Type of marker - good for positive moments, bad for issues, uncertain when AI cannot determine"),
-      category: z.string().describe("Category like greeting, empathy, resolution, tone, compliance, etc."),
-      description: z.string().describe("Detailed explanation of what happened at this point"),
-      confidence: z.number().describe("AI confidence level from 0-100"),
+  overallScore: z
+    .number()
+    .describe(
+      "Overall call quality score 0-100. When a rubric is provided, base on how well the agent met the rubric criteria.",
+    ),
+  summary: z
+    .string()
+    .describe(
+      "Brief QA/performance summary. When a rubric is provided, reference which rubric criteria the agent met or missed.",
+    ),
+  conversationSummary: z
+    .string()
+    .describe(
+      "Brief summary of what was discussed in the call—the actual conversation content, topics, and outcome. This is a neutral summary of the call for someone who wants to know what happened, not feedback for the agent.",
+    ),
+  markers: z
+    .array(
+      z.object({
+        timestamp: z
+          .number()
+          .describe("Timestamp in seconds where this event occurs"),
+        type: z
+          .enum(["good", "bad", "uncertain", "improvement"])
+          .describe(
+            "good=positive moment; bad=clear issue; uncertain=ambiguous; improvement=needs improvement",
+          ),
+        category: z
+          .string()
+          .describe(
+            "The section title from the rubric, exactly as it appears (e.g. Introduction, Empathy). When no rubric: e.g. greeting, empathy, resolution.",
+          ),
+        rubricExact: z
+          .string()
+          .describe(
+            "When a rubric is provided: the description/criterion for this section from the rubric, verbatim—same as in the rubric. When no rubric: \"\".",
+          ),
+        description: z
+          .string()
+          .describe(
+            "Your comment about this specific message only: how this moment relates to the rubric. Unique to this message—do not repeat the rubric. When no rubric: explain what happened.",
+          ),
+        confidence: z.number().describe("AI confidence level from 0-100"),
+      }),
+    )
+    .describe(
+      "Markers for good, bad, improvement, or uncertain moments. Each must relate to a specific rubric section when a rubric is provided.",
+    ),
+  strengths: z
+    .array(z.string())
+    .describe(
+      "List of things the agent did well. When a rubric is provided, each strength must cite the exact rubric section/criterion (e.g. '[Opening 1.1] Agent greeted professionally').",
+    ),
+  improvements: z
+    .array(z.string())
+    .describe(
+      "List of areas for improvement. When a rubric is provided, each improvement must cite the exact rubric section/criterion (e.g. '[Troubleshooting 4.2] Agent should check notes before asking customer to repeat').",
+    ),
+  categoryScores: z
+    .object({
+      opening: z.number(),
+      empathy: z.number(),
+      troubleshooting: z.number(),
+      resolution: z.number(),
+      closing: z.number(),
     })
-  ).describe("List of timestamped markers indicating good, bad, or uncertain moments in the call"),
-  strengths: z.array(z.string()).describe("List of things the agent did well"),
-  improvements: z.array(z.string()).describe("List of areas for improvement"),
-})
+    .describe(
+      "Scores 0-100 per category. When a rubric is provided, derive each from how well the agent met the rubric criteria that map to that category.",
+    ),
+  agent: z
+    .string()
+    .describe("Agent name if stated; use '—' when not stated"),
+  customer: z
+    .string()
+    .describe(
+      "Customer name or identifier if stated; use '—' when not stated",
+    ),
+});
 
 export async function POST(req: Request) {
-  const formData = await req.formData()
-  const transcript = formData.get("transcript") as string
-  const duration = parseFloat(formData.get("duration") as string) || 180
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return Response.json(
+      { error: "OPENAI_API_KEY is not set. Add it to .env.local." },
+      { status: 500 }
+    );
+  }
 
-  // Simulate AI analysis with realistic markers based on duration
-  const result = await generateText({
-    model: "openai/gpt-4o-mini",
-    output: Output.object({ schema: analysisSchema }),
-    prompt: `You are a QA analyst reviewing a customer service call. Analyze the following call transcript and provide detailed feedback.
+  try {
+    const formData = await req.formData();
+    const transcript = (formData.get("transcript") as string)?.trim() ?? "";
+    const duration = parseFloat(formData.get("duration") as string) || 180;
+    let rubricText = (formData.get("rubric") as string)?.trim() ?? "";
+
+    const rubricFile = formData.get("rubricFile");
+    const rubricFileName = (formData.get("rubricFileName") as string) || "";
+    if (
+      rubricFile &&
+      typeof (rubricFile as Blob).arrayBuffer === "function"
+    ) {
+      try {
+        const buf = Buffer.from(await (rubricFile as Blob).arrayBuffer());
+        const ext = (rubricFileName.split(".").pop() || "").toLowerCase();
+        if (ext === "xlsx" || ext === "xls") {
+          const wb = XLSX.read(buf, { type: "buffer" });
+          const parts: string[] = [];
+          const names = wb?.SheetNames;
+          const sheets = wb?.Sheets;
+          if (Array.isArray(names) && sheets) {
+            for (const name of names) {
+              const sheet = sheets[name];
+              if (sheet) {
+                const csv = XLSX.utils.sheet_to_csv(sheet);
+                if (csv?.trim()) parts.push(csv);
+              }
+            }
+          }
+          rubricText = parts.join("\n\n");
+        } else if (ext === "pdf") {
+          const pdfjs = await import("pdfjs-dist");
+          const pdf = await pdfjs.getDocument({
+            data: new Uint8Array(buf),
+          }).promise;
+          const parts: string[] = [];
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            parts.push(
+              content.items
+                .map((x: { str?: string }) => (x as { str?: string }).str ?? "")
+                .join(" ")
+            );
+          }
+          rubricText = parts.join("\n\n");
+        } else {
+          rubricText = buf.toString("utf-8");
+        }
+      } catch {
+        // keep rubricText from "rubric" field or ""
+      }
+    }
+
+    if (!transcript) {
+      return Response.json(
+        { error: "Transcript is required. Transcribe the audio first." },
+        { status: 400 }
+      );
+    }
+
+    const rubricSource = rubricFileName
+      ? ` (extracted from the **uploaded rubric file** \`${rubricFileName}\`)`
+      : "";
+
+    const rubricBlock = rubricText
+      ? `
+
+**Evaluation rubric${rubricSource} – use this as the authoritative source for scoring and for all good, bad, needs improvement, and uncertain markers.**
+
+The text between the lines below is the rubric. For each marker: copy the **section title** into \`category\` and that section's **description** (the criterion text) into \`rubricExact\` verbatim.
+
+---
+${rubricText}
+---
+
+**For each marker when a rubric is provided:**
+- \`category\` = the **section title** from the rubric, exactly as it appears (e.g. Introduction, Empathy).
+- \`rubricExact\` = the **description** for that section from the rubric—copy it verbatim, same as in the rubric. Do not leave empty.
+- \`description\` = **your comment about this specific message only**: how this moment relates to the rubric. Unique to this message; do not repeat the rubric text.
+
+**When a rubric is provided, good / bad / needs improvement / uncertain MUST be written in relation to it:**
+
+- **good**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (how the agent met it).
+
+- **bad**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (how the agent failed it).
+
+- **improvement**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (what improvement is needed).
+
+- **uncertain**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (what is uncertain).
+
+Do not create good, bad, improvement, or uncertain markers for aspects that are not in the rubric—only for moments that map to a rubric section.
+
+**When a rubric is provided, every analysis output must be tied to it:**
+- **overallScore** and **summary**: Base on how well the agent met the rubric criteria overall.
+- **strengths**: Each strength must cite the exact rubric section/criterion, e.g. \`[Opening 1.1] Agent greeted professionally and stated name\` or \`[Empathy 2.3] Acknowledged customer frustration appropriately\`. Do not list strengths that do not map to a rubric criterion.
+- **improvements**: Each improvement must cite the exact rubric section/criterion, e.g. \`[Troubleshooting 4.2] Agent should review notes before asking customer to repeat steps\`. Do not list improvements outside the rubric.
+- **categoryScores** (opening, empathy, troubleshooting, resolution, closing): Score each 0–100 based on how well the agent met the rubric criteria that best map to that category. Use the rubric's section names and requirements to justify each score.`
+      : `
+
+**Markers (no rubric):** For each marker, set "category" to a specific area (e.g. greeting, empathy, resolution, tone, compliance). Set \`rubricExact\` to \`""\`. In "description", explain what happened and which area it relates to.`;
+
+    const result = await generateText({
+      model: openai("gpt-4o-mini"),
+      output: Output.object({ schema: analysisSchema }),
+      prompt: `You are a QA analyst reviewing a customer service call. Analyze the following call transcript and provide detailed feedback.
+
+**Transcript format:** Each line is prefixed with "Agent:" or "Customer:". The **Agent** is the customer service representative (the employee being evaluated). The **Customer** is the person who called. Use these labels to know who said what.
+
+**Critical – Agent vs Customer:** All evaluation (overall score, markers, strengths, improvements, categoryScores) applies to the **AGENT only**. The customer's words are for context. In every marker description and in strengths/improvements, attribute correctly: "The agent..." vs "The customer...". Do not credit or blame the customer for the agent's actions. If a line's label seems wrong from context (e.g. "Customer: How can I help you today?"), use content: the agent usually greets, offers help, apologizes, troubleshoots, and closes; the customer usually describes the problem and asks for help. Prefer content over the label when they conflict.
 
 The call duration is ${duration} seconds. Create markers at various timestamps throughout the call (from 0 to ${duration} seconds).
+${rubricBlock}
 
-Transcript:
-${transcript || "No transcript provided - generate a realistic sample analysis for a customer service call about a billing dispute. The agent handled the initial greeting well, struggled with empathy during the complaint, showed good problem-solving skills when offering solutions, but had an awkward closing."}
+**Marker types (use exactly one per marker):** good | bad | improvement | uncertain.
+- **good**: Positive moment; agent did something well.
+- **bad**: Clear issue or failure.
+- **improvement**: Needs improvement; could be better but not a failure.
+- **uncertain**: Context is ambiguous; cannot clearly judge.
 
-Provide:
-1. An overall quality score (0-100)
-2. A brief summary (QA/performance feedback for the agent)
-3. A conversation summary: a neutral summary of what was actually discussed in the call—the topic, key points, resolution, and outcome—for someone who wants to know what happened in the conversation (not agent feedback)
-4. Timestamped markers indicating good, bad, or uncertain moments (include at least 6-10 markers spread across the call)
-5. List of strengths
-6. List of areas for improvement
+Transcript (Agent = employee being evaluated; Customer = caller):
+${transcript}
 
-For uncertain markers, use them when the context is ambiguous or when you cannot definitively judge whether the agent's response was appropriate.`,
-  })
+Provide (all feedback is about the Agent only, not the Customer). When a rubric is provided, every point (1–7) must relate to the uploaded rubric:
+1. **overallScore** (0-100): When a rubric exists, base on how well the agent met the rubric criteria.
+2. **summary** (QA/performance feedback): When a rubric exists, reference which rubric criteria the agent met or missed.
+3. **conversationSummary** (neutral: what was discussed, outcome)—no need to cite rubric.
+4. **markers** (6-12 total): When a rubric exists: (a) \`category\` = the section **title** from the rubric, (b) \`rubricExact\` = that section's **description** from the rubric (verbatim), (c) \`description\` = your **comment** about this specific message only—how it relates to the rubric; unique to this moment. When no rubric: category (e.g. greeting, empathy), \`rubricExact\` = \`""\`, description = what happened.
+5. **strengths**: When a rubric exists, each strength MUST cite the rubric section/criterion, e.g. \`[Section 1.1] ...\`. Only include strengths that map to the rubric.
+6. **improvements**: When a rubric exists, each improvement MUST cite the rubric section/criterion, e.g. \`[Section 4.2] ...\`. Only include improvements that map to the rubric.
+7. **categoryScores**: { opening, empathy, troubleshooting, resolution, closing } 0-100 each. When a rubric exists, derive from how well the agent met the matching rubric criteria.
+8. **agent**: name if stated; "—" otherwise
+9. **customer**: name or identifier if stated; "—" otherwise`,
+    });
 
-  return Response.json(result.object)
+    const obj = result.object ?? (result as { output?: unknown }).output;
+    if (obj == null) throw new Error("No analysis result from model");
+    return Response.json(obj);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Analysis failed";
+    return Response.json({ error: msg }, { status: 500 });
+  }
 }

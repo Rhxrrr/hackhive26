@@ -18,7 +18,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { jsPDF } from "jspdf";
 
 // --- Live-call (Soniox + tone) constants and helpers
@@ -42,20 +46,30 @@ function cleanTokenText(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-type AiNotesByCategory = { information: string[]; problems: string[]; requests: string[]; concerns: string[] };
+type AiNotesByCategory = {
+  information: string[];
+  problems: string[];
+  requests: string[];
+  concerns: string[];
+};
 
-const EMPTY_AI_NOTES: AiNotesByCategory = { information: [], problems: [], requests: [], concerns: [] };
+const EMPTY_AI_NOTES: AiNotesByCategory = {
+  information: [],
+  problems: [],
+  requests: [],
+  concerns: [],
+};
 
 /** Normalize a note for deduplication: strip common prefixes, lowercase, collapse spaces. */
 function normalizeNote(s: string): string {
   const t = (s || "")
     .replace(
       /^(customer name:?|customer's name is|full name is|customer name is|customer employer:?|works for|problem:?|concern:?|concerned about|wants to understand|related to)\s*/gi,
-      ""
+      "",
     )
     .replace(
       /^(frustrated about|worried about|relies on|relies heavily on|feeling upset about|upset about|wants to|wants clarity on|needs clarification on|needs clarification|does not understand|feeling upset)\s*/gi,
-      ""
+      "",
     )
     .trim()
     .toLowerCase();
@@ -69,7 +83,9 @@ function normalizeToneError(err: string | null | undefined): string {
   if (/rate limit|RPD|gpt-4o-realtime|gpt-4o-audio|requests per day/i.test(s)) {
     const m = s.match(/(?:please\s+)?try again in\s+([\d][\d.ms]*)\s*[.\s]?/i);
     const when = m?.[1]?.trim().replace(/\.$/, "");
-    return when ? `Rate limit reached. Try again in ${when}.` : "Rate limit reached. Try again in a few minutes.";
+    return when
+      ? `Rate limit reached. Try again in ${when}.`
+      : "Rate limit reached. Try again in a few minutes.";
   }
   return s;
 }
@@ -77,9 +93,11 @@ function normalizeToneError(err: string | null | undefined): string {
 /** Map score in [-1, 1] to dot and border classes (gradient). */
 function scoreStyles(score: number): { dot: string; border: string } {
   if (score <= -0.5) return { dot: "bg-red-500", border: "border-red-500" };
-  if (score <= -0.2) return { dot: "bg-orange-500", border: "border-orange-500" };
+  if (score <= -0.2)
+    return { dot: "bg-orange-500", border: "border-orange-500" };
   if (score <= 0.2) return { dot: "bg-amber-500", border: "border-amber-500" };
-  if (score <= 0.5) return { dot: "bg-emerald-400", border: "border-emerald-400" };
+  if (score <= 0.5)
+    return { dot: "bg-emerald-400", border: "border-emerald-400" };
   return { dot: "bg-emerald-500", border: "border-emerald-500" };
 }
 
@@ -138,24 +156,43 @@ function getSentimentBgColor(bar: number) {
 
 export default function LiveCallPage() {
   // --- Live-call state and refs
-  const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
-  const [transcriptBlocks, setTranscriptBlocks] = useState<{ speaker: string; text: string; isProvisional?: boolean }[]>([]);
+  const [status, setStatus] = useState<
+    "idle" | "connecting" | "live" | "error"
+  >("idle");
+  const [transcriptBlocks, setTranscriptBlocks] = useState<
+    { speaker: string; text: string; isProvisional?: boolean }[]
+  >([]);
   const [sentimentResults, setSentimentResults] = useState<
-    { score: number; sentiment: string; excerpt: string; insertAfterIndex: number }[]
+    {
+      score: number;
+      sentiment: string;
+      excerpt: string;
+      insertAfterIndex: number;
+    }[]
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [toneError, setToneError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [hoveredSentimentIndex, setHoveredSentimentIndex] = useState<number | null>(null);
+  const [hoveredSentimentIndex, setHoveredSentimentIndex] = useState<
+    number | null
+  >(null);
   const callStartRef = useRef<number | null>(null);
   const [callDuration, setCallDuration] = useState("00:00");
-  const [liveFeedback, setLiveFeedback] = useState<{ tips: string[] } | null>(null);
+  const [liveFeedback, setLiveFeedback] = useState<{ tips: string[] } | null>(
+    null,
+  );
   const [liveFeedbackLoading, setLiveFeedbackLoading] = useState(false);
-  const [liveFeedbackError, setLiveFeedbackError] = useState<string | null>(null);
-  const [brainstormIdeas, setBrainstormIdeas] = useState<{ ideas: string[] } | null>(null);
+  const [liveFeedbackError, setLiveFeedbackError] = useState<string | null>(
+    null,
+  );
+  const [brainstormIdeas, setBrainstormIdeas] = useState<{
+    ideas: string[];
+  } | null>(null);
   const [brainstormLoading, setBrainstormLoading] = useState(false);
   const [brainstormError, setBrainstormError] = useState<string | null>(null);
-  const [aiNotes, setAiNotes] = useState<AiNotesByCategory>(() => ({ ...EMPTY_AI_NOTES }));
+  const [aiNotes, setAiNotes] = useState<AiNotesByCategory>(() => ({
+    ...EMPTY_AI_NOTES,
+  }));
   const [aiNotesLoading, setAiNotesLoading] = useState(false);
   const [aiNotesError, setAiNotesError] = useState<string | null>(null);
 
@@ -164,7 +201,10 @@ export default function LiveCallPage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const messagesRef = useRef<{ speaker: string; text: string }[]>([]);
-  const currentBlockRef = useRef<{ speaker: string; text: string }>({ speaker: "1", text: "" });
+  const currentBlockRef = useRef<{ speaker: string; text: string }>({
+    speaker: "1",
+    text: "",
+  });
   const nonFinalRef = useRef<{ speaker: string; text: string } | null>(null);
   const toneBufferRef = useRef("");
   const toneSpeakerCountsRef = useRef<Record<string, number>>({});
@@ -181,7 +221,8 @@ export default function LiveCallPage() {
 
   useEffect(() => {
     if (status !== "live" || callStartRef.current == null) return;
-    const tick = () => setCallDuration(formatDuration(Date.now() - callStartRef.current!));
+    const tick = () =>
+      setCallDuration(formatDuration(Date.now() - callStartRef.current!));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -194,7 +235,7 @@ export default function LiveCallPage() {
         .filter((b) => !b.isProvisional)
         .map((b) => `Speaker ${b.speaker}: ${b.text || ""}`)
         .join("\n"),
-    [transcriptBlocks]
+    [transcriptBlocks],
   );
 
   const ranges = useMemo(() => {
@@ -217,59 +258,118 @@ export default function LiveCallPage() {
     }
   }, []);
 
-  const analyzeTone = useCallback(async (text: string, insertAfterIndex: number, segmentSpeaker?: string, fullTranscript?: string) => {
-    if (text.length < TONE_MIN_CHARS) return;
-    setToneError(null);
-    try {
-      const body: Record<string, unknown> = { text, focusCustomer: true, segmentSpeaker: segmentSpeaker ?? "1" };
-      if (fullTranscript != null && fullTranscript !== "") body.fullTranscript = fullTranscript;
-      const res = await fetch("/api/soniox/analyze-tone", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (res.ok && typeof data.score === "number") {
-        setSentimentResults((prev) => [...prev, { score: data.score, sentiment: data.sentiment || "", excerpt: text, insertAfterIndex }]);
-      } else {
-        setToneError(normalizeToneError(data?.error || `Tone API ${res.status}`));
+  const analyzeTone = useCallback(
+    async (
+      text: string,
+      insertAfterIndex: number,
+      segmentSpeaker?: string,
+      fullTranscript?: string,
+    ) => {
+      if (text.length < TONE_MIN_CHARS) return;
+      setToneError(null);
+      try {
+        const body: Record<string, unknown> = {
+          text,
+          focusCustomer: true,
+          segmentSpeaker: segmentSpeaker ?? "1",
+        };
+        if (fullTranscript != null && fullTranscript !== "")
+          body.fullTranscript = fullTranscript;
+        const res = await fetch("/api/soniox/analyze-tone", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (res.ok && typeof data.score === "number") {
+          setSentimentResults((prev) => [
+            ...prev,
+            {
+              score: data.score,
+              sentiment: data.sentiment || "",
+              excerpt: text,
+              insertAfterIndex,
+            },
+          ]);
+        } else {
+          setToneError(
+            normalizeToneError(data?.error || `Tone API ${res.status}`),
+          );
+        }
+      } catch (e) {
+        setToneError(
+          normalizeToneError(
+            e instanceof Error ? e.message : "Tone request failed",
+          ),
+        );
       }
-    } catch (e) {
-      setToneError(normalizeToneError(e instanceof Error ? e.message : "Tone request failed"));
-    }
-  }, []);
+    },
+    [],
+  );
 
-  const analyzeToneFromAudio = useCallback(async (audioBlob: Blob, insertAfterIndex: number, segmentSpeaker?: string, fullTranscript?: string) => {
-    setToneError(null);
-    try {
-      const form = new FormData();
-      form.append("audio", audioBlob);
-      form.append("focusCustomer", "true");
-      form.append("segmentSpeaker", segmentSpeaker ?? "1");
-      if (fullTranscript != null && fullTranscript !== "") form.append("fullTranscript", fullTranscript);
-      const res = await fetch("/api/soniox/analyze-tone", { method: "POST", body: form });
-      const data = await res.json();
-      if (res.ok && typeof data.score === "number") {
-        setSentimentResults((prev) => [...prev, { score: data.score, sentiment: data.sentiment || "", excerpt: "From audio", insertAfterIndex }]);
-      } else {
-        setToneError(normalizeToneError(data?.error || `Tone API ${res.status}`));
+  const analyzeToneFromAudio = useCallback(
+    async (
+      audioBlob: Blob,
+      insertAfterIndex: number,
+      segmentSpeaker?: string,
+      fullTranscript?: string,
+    ) => {
+      setToneError(null);
+      try {
+        const form = new FormData();
+        form.append("audio", audioBlob);
+        form.append("focusCustomer", "true");
+        form.append("segmentSpeaker", segmentSpeaker ?? "1");
+        if (fullTranscript != null && fullTranscript !== "")
+          form.append("fullTranscript", fullTranscript);
+        const res = await fetch("/api/soniox/analyze-tone", {
+          method: "POST",
+          body: form,
+        });
+        const data = await res.json();
+        if (res.ok && typeof data.score === "number") {
+          setSentimentResults((prev) => [
+            ...prev,
+            {
+              score: data.score,
+              sentiment: data.sentiment || "",
+              excerpt: "From audio",
+              insertAfterIndex,
+            },
+          ]);
+        } else {
+          setToneError(
+            normalizeToneError(data?.error || `Tone API ${res.status}`),
+          );
+        }
+      } catch (e) {
+        setToneError(
+          normalizeToneError(
+            e instanceof Error ? e.message : "Tone from audio failed",
+          ),
+        );
       }
-    } catch (e) {
-      setToneError(normalizeToneError(e instanceof Error ? e.message : "Tone from audio failed"));
-    }
-  }, []);
+    },
+    [],
+  );
 
   const fetchNotesAndCoaching = useCallback(
     async (
       transcript: string,
-      transcriptBlocks: { speaker: string; text: string; isProvisional?: boolean }[],
+      transcriptBlocks: {
+        speaker: string;
+        text: string;
+        isProvisional?: boolean;
+      }[],
       notes: AiNotesByCategory,
       recentSentiments: { score: number; sentiment: string }[],
       previousCoaching: string[],
-      previousSolutions: string[]
+      previousSolutions: string[],
     ) => {
       if (transcript.length < 20) return;
-      const finalCount = transcriptBlocks.filter((b) => !b.isProvisional).length;
+      const finalCount = transcriptBlocks.filter(
+        (b) => !b.isProvisional,
+      ).length;
       if (finalCount <= lastProcessedFinalCountRef.current) return;
       lastProcessedFinalCountRef.current = finalCount;
       setAiNotesError(null);
@@ -284,7 +384,12 @@ export default function LiveCallPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             transcript,
-            notes: { information: notes.information, problems: notes.problems, requests: notes.requests, concerns: notes.concerns },
+            notes: {
+              information: notes.information,
+              problems: notes.problems,
+              requests: notes.requests,
+              concerns: notes.concerns,
+            },
             recentSentiments,
             previousCoaching,
             previousSolutions,
@@ -299,7 +404,12 @@ export default function LiveCallPage() {
           coaching?: string[];
           error?: string;
         };
-        if (res.ok && data && typeof data === "object" && !("error" in data && data.error)) {
+        if (
+          res.ok &&
+          data &&
+          typeof data === "object" &&
+          !("error" in data && data.error)
+        ) {
           const inf = Array.isArray(data.information) ? data.information : [];
           const pr = Array.isArray(data.problems) ? data.problems : [];
           const req = Array.isArray(data.requests) ? data.requests : [];
@@ -307,7 +417,12 @@ export default function LiveCallPage() {
           setAiNotes((prev) => {
             const existingNorm = new Set<string>();
             const existingNormList: string[] = [];
-            for (const x of [...prev.information, ...prev.problems, ...prev.requests, ...prev.concerns]) {
+            for (const x of [
+              ...prev.information,
+              ...prev.problems,
+              ...prev.requests,
+              ...prev.concerns,
+            ]) {
               const n = normalizeNote(x);
               if (n) {
                 existingNorm.add(n);
@@ -315,7 +430,9 @@ export default function LiveCallPage() {
               }
             }
             const isDup = (c: string) =>
-              existingNorm.has(c) || (c.length >= 3 && existingNormList.some((e) => e.includes(c) || c.includes(e)));
+              existingNorm.has(c) ||
+              (c.length >= 3 &&
+                existingNormList.some((e) => e.includes(c) || c.includes(e)));
             const add = (c: string) => {
               existingNorm.add(c);
               existingNormList.push(c);
@@ -341,8 +458,12 @@ export default function LiveCallPage() {
               concerns: merge(prev.concerns, con),
             };
           });
-          setBrainstormIdeas({ ideas: Array.isArray(data.solutions) ? data.solutions : [] });
-          setLiveFeedback({ tips: Array.isArray(data.coaching) ? data.coaching : [] });
+          setBrainstormIdeas({
+            ideas: Array.isArray(data.solutions) ? data.solutions : [],
+          });
+          setLiveFeedback({
+            tips: Array.isArray(data.coaching) ? data.coaching : [],
+          });
         } else {
           const err = data?.error || `Notes & coaching API ${res.status}`;
           setAiNotesError(err);
@@ -350,7 +471,8 @@ export default function LiveCallPage() {
           setBrainstormError(err);
         }
       } catch (e) {
-        const err = e instanceof Error ? e.message : "Notes & coaching request failed";
+        const err =
+          e instanceof Error ? e.message : "Notes & coaching request failed";
         setAiNotesError(err);
         setLiveFeedbackError(err);
         setBrainstormError(err);
@@ -360,28 +482,38 @@ export default function LiveCallPage() {
         setBrainstormLoading(false);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
     if (status !== "live") return;
-    const recentSentiments = sentimentResults.slice(-3).map((s) => ({ score: s.score, sentiment: s.sentiment }));
+    const recentSentiments = sentimentResults
+      .slice(-3)
+      .map((s) => ({ score: s.score, sentiment: s.sentiment }));
     fetchNotesAndCoaching(
       transcript,
       transcriptBlocks,
       aiNotes,
       recentSentiments,
       liveFeedback?.tips ?? [],
-      brainstormIdeas?.ideas ?? []
+      brainstormIdeas?.ideas ?? [],
     );
     // aiNotes, liveFeedback?.tips, brainstormIdeas?.ideas from closure; omitted from deps to avoid array-size issues.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, transcript, transcriptBlocks, sentimentResults, fetchNotesAndCoaching]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    status,
+    transcript,
+    transcriptBlocks,
+    sentimentResults,
+    fetchNotesAndCoaching,
+  ]);
 
   const downloadTranscript = useCallback(() => {
     const final = transcriptBlocks.filter((b) => !b.isProvisional);
     if (final.length === 0) return;
-    const text = final.map((b) => `Speaker ${b.speaker}: ${b.text || ""}`).join("\n");
+    const text = final
+      .map((b) => `Speaker ${b.speaker}: ${b.text || ""}`)
+      .join("\n");
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -474,7 +606,9 @@ export default function LiveCallPage() {
     // Transcript
     addSection("Transcript");
     if (final.length > 0) {
-      const transcriptText = final.map((b) => `Speaker ${b.speaker}: ${b.text || ""}`).join("\n");
+      const transcriptText = final
+        .map((b) => `Speaker ${b.speaker}: ${b.text || ""}`)
+        .join("\n");
       addBlock(transcriptText);
     } else addLine("(No transcript)");
     y += 4;
@@ -527,14 +661,23 @@ export default function LiveCallPage() {
     if (sentimentResults.length > 0) {
       sentimentResults.forEach((s, i) => {
         const bar = scoreToBar(s.score);
-        addLine(`[${i + 1}] Score: ${bar}/100  (${s.score >= 0 ? "+" : ""}${s.score.toFixed(2)})`, { bold: true });
+        addLine(
+          `[${i + 1}] Score: ${bar}/100  (${s.score >= 0 ? "+" : ""}${s.score.toFixed(2)})`,
+          { bold: true },
+        );
         if (s.sentiment) addBlock(s.sentiment);
         y += 2;
       });
     } else addLine("(No sentiment data)");
 
     doc.save(`call-report-${date}.pdf`);
-  }, [transcriptBlocks, aiNotes, liveFeedback?.tips, brainstormIdeas?.ideas, sentimentResults]);
+  }, [
+    transcriptBlocks,
+    aiNotes,
+    liveFeedback?.tips,
+    brainstormIdeas?.ideas,
+    sentimentResults,
+  ]);
 
   const startCall = async () => {
     setError(null);
@@ -562,7 +705,8 @@ export default function LiveCallPage() {
     try {
       const keyRes = await fetch("/api/soniox/temp-key", { method: "POST" });
       const keyData = await keyRes.json();
-      if (!keyRes.ok) throw new Error(keyData.error || "Failed to get temp key");
+      if (!keyRes.ok)
+        throw new Error(keyData.error || "Failed to get temp key");
       const tempKey = keyData.api_key;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -587,15 +731,17 @@ export default function LiveCallPage() {
 
       await new Promise<void>((resolve, reject) => {
         ws.onopen = () => {
-          ws.send(JSON.stringify({
-            api_key: tempKey,
-            model: "stt-rt-v3",
-            audio_format: "pcm_s16le",
-            sample_rate: TARGET_SAMPLE_RATE,
-            num_channels: 1,
-            enable_speaker_diarization: true,
-            enable_endpoint_detection: true,
-          }));
+          ws.send(
+            JSON.stringify({
+              api_key: tempKey,
+              model: "stt-rt-v3",
+              audio_format: "pcm_s16le",
+              sample_rate: TARGET_SAMPLE_RATE,
+              num_channels: 1,
+              enable_speaker_diarization: true,
+              enable_endpoint_detection: true,
+            }),
+          );
           resolve();
         };
         ws.onerror = () => reject(new Error("WebSocket error"));
@@ -616,9 +762,14 @@ export default function LiveCallPage() {
           const s = Math.max(-32768, Math.min(32767, Math.floor(v * 32768)));
           out[i] = s;
         }
-        const bytes = new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
+        const bytes = new Uint8Array(
+          out.buffer,
+          out.byteOffset,
+          out.byteLength,
+        );
         toneAudioChunksRef.current.push(new Uint8Array(bytes));
-        for (let i = 0; i < bytes.length; i++) audioBufferRef.current.push(bytes[i]);
+        for (let i = 0; i < bytes.length; i++)
+          audioBufferRef.current.push(bytes[i]);
         flushAudio(ws);
       };
 
@@ -641,32 +792,54 @@ export default function LiveCallPage() {
               const cur = currentBlockRef.current;
               if (sp !== cur.speaker && cur.text) {
                 messagesRef.current.push({ ...cur });
-                toneSpeakerCountsRef.current[cur.speaker] = (toneSpeakerCountsRef.current[cur.speaker] || 0) + 1;
+                toneSpeakerCountsRef.current[cur.speaker] =
+                  (toneSpeakerCountsRef.current[cur.speaker] || 0) + 1;
                 currentBlockRef.current = { speaker: sp, text: "" };
               }
               currentBlockRef.current.speaker = sp;
               currentBlockRef.current.text += text;
             } else {
-              if (!nonFinalRef.current) nonFinalRef.current = { speaker: sp, text };
+              if (!nonFinalRef.current)
+                nonFinalRef.current = { speaker: sp, text };
               else nonFinalRef.current.text += text;
             }
           }
 
-          const finalParts = tokens.filter((t: { is_final?: boolean }) => t.is_final).map((t: { text?: string }) => cleanTokenText(t.text ?? ""));
+          const finalParts = tokens
+            .filter((t: { is_final?: boolean }) => t.is_final)
+            .map((t: { text?: string }) => cleanTokenText(t.text ?? ""));
           if (finalParts.length) {
             const added = finalParts.join("");
             toneBufferRef.current += added;
-            const finalTokens = tokens.filter((t: { is_final?: boolean }) => t.is_final);
-            const segmentSpeaker = finalTokens.length ? String(finalTokens[finalTokens.length - 1]?.speaker ?? "1") : "1";
+            const finalTokens = tokens.filter(
+              (t: { is_final?: boolean }) => t.is_final,
+            );
+            const segmentSpeaker = finalTokens.length
+              ? String(finalTokens[finalTokens.length - 1]?.speaker ?? "1")
+              : "1";
             const insertAfterIndex = messagesRef.current.length;
             if (added.length >= TONE_MIN_CHARS) {
               const fullTranscript = [
-                ...messagesRef.current.map((m) => `Speaker ${m.speaker}: ${m.text}`),
-                currentBlockRef.current.text ? `Speaker ${currentBlockRef.current.speaker}: ${currentBlockRef.current.text}` : "",
-              ].filter(Boolean).join("\n");
+                ...messagesRef.current.map(
+                  (m) => `Speaker ${m.speaker}: ${m.text}`,
+                ),
+                currentBlockRef.current.text
+                  ? `Speaker ${currentBlockRef.current.speaker}: ${currentBlockRef.current.text}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\n");
               // Use text-only (gpt-4o-mini) to avoid gpt-4o-audio-preview / gpt-4o-realtime rate limits
-              analyzeTone(added, insertAfterIndex, segmentSpeaker, fullTranscript);
-              toneBufferRef.current = toneBufferRef.current.slice(0, toneBufferRef.current.length - added.length);
+              analyzeTone(
+                added,
+                insertAfterIndex,
+                segmentSpeaker,
+                fullTranscript,
+              );
+              toneBufferRef.current = toneBufferRef.current.slice(
+                0,
+                toneBufferRef.current.length - added.length,
+              );
               toneAudioChunksRef.current = [];
             }
           }
@@ -696,18 +869,38 @@ export default function LiveCallPage() {
       ws.close();
     }
     wsRef.current = null;
-    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
-    if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} processorRef.current = null; }
-    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (processorRef.current) {
+      try {
+        processorRef.current.disconnect();
+      } catch {}
+      processorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
     if (toneBufferRef.current.length >= TONE_MIN_CHARS) {
       const insertAfterIndex = messagesRef.current.length;
       const segmentSpeaker = currentBlockRef.current?.speaker ?? "2";
       const fullTranscript = [
         ...messagesRef.current.map((m) => `Speaker ${m.speaker}: ${m.text}`),
-        currentBlockRef.current?.text ? `Speaker ${currentBlockRef.current.speaker}: ${currentBlockRef.current.text}` : "",
-      ].filter(Boolean).join("\n");
+        currentBlockRef.current?.text
+          ? `Speaker ${currentBlockRef.current.speaker}: ${currentBlockRef.current.text}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
       // Use text-only to avoid gpt-4o-audio / gpt-4o-realtime rate limits
-      analyzeTone(toneBufferRef.current, insertAfterIndex, segmentSpeaker, fullTranscript);
+      analyzeTone(
+        toneBufferRef.current,
+        insertAfterIndex,
+        segmentSpeaker,
+        fullTranscript,
+      );
     }
     callStartRef.current = null;
     setCallDuration("00:00");
@@ -716,7 +909,9 @@ export default function LiveCallPage() {
 
   const isConnected = status === "live";
   const latestSentiment = sentimentResults[sentimentResults.length - 1];
-  const currentSentiment = latestSentiment ? scoreToBar(latestSentiment.score) : 50;
+  const currentSentiment = latestSentiment
+    ? scoreToBar(latestSentiment.score)
+    : 50;
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
@@ -724,7 +919,10 @@ export default function LiveCallPage() {
       <header className="border-b border-border px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link
+              href="/"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
               QA Review
             </Link>
             <span className="text-muted-foreground">/</span>
@@ -756,11 +954,21 @@ export default function LiveCallPage() {
           <div className="flex items-center gap-2">
             {!isConnected && transcriptBlocks.length > 0 && (
               <>
-                <Button variant="outline" size="sm" onClick={downloadTranscript} className="gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadTranscript}
+                  className="gap-1.5"
+                >
                   <Download className="w-4 h-4" />
                   Download transcript
                 </Button>
-                <Button variant="outline" size="sm" onClick={downloadFullReport} className="gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadFullReport}
+                  className="gap-1.5"
+                >
                   <Download className="w-4 h-4" />
                   Download report (PDF)
                 </Button>
@@ -769,11 +977,20 @@ export default function LiveCallPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => { isMutedRef.current = !isMutedRef.current; setIsMuted(isMutedRef.current); }}
-              className={isMuted ? "bg-red-500/10 border-red-500/30 text-red-400" : ""}
+              onClick={() => {
+                isMutedRef.current = !isMutedRef.current;
+                setIsMuted(isMutedRef.current);
+              }}
+              className={
+                isMuted ? "bg-red-500/10 border-red-500/30 text-red-400" : ""
+              }
               disabled={!isConnected}
             >
-              {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              {isMuted ? (
+                <MicOff className="w-4 h-4" />
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
             </Button>
             <Button
               variant={isConnected ? "destructive" : "default"}
@@ -826,95 +1043,122 @@ export default function LiveCallPage() {
             {/* --- Coaching & Solutions (combined, blue/green) --- */}
             <div className="flex flex-col flex-1 min-h-0">
               <div className="flex items-center gap-2 shrink-0">
-                <div className="p-2 rounded-lg bg-blue-500/10">
+              <div className="p-2 rounded-lg bg-blue-500/10">
                   <MessageSquare className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="font-medium">Coaching & Solutions</h2>
-                  <p className="text-xs text-muted-foreground">Coaching (blue): how to propose solutions. Solutions (green): ideas for the customer's problems.</p>
-                </div>
               </div>
+              <div>
+                  <h2 className="font-medium">Coaching & Solutions</h2>
+                <p className="text-xs text-muted-foreground">
+                    Coaching (blue): how to propose solutions. Solutions
+                    (green): ideas for the customer's problems.
+                </p>
+              </div>
+            </div>
               <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                 {liveFeedbackError || brainstormError ? (
                   <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                     {liveFeedbackError || brainstormError}
-                  </div>
-                ) : (liveFeedback?.tips?.length || brainstormIdeas?.ideas?.length) ? (
+                </div>
+                ) : liveFeedback?.tips?.length ||
+                  brainstormIdeas?.ideas?.length ? (
                   <div className="space-y-1.5">
                     {(liveFeedback?.tips || []).map((tip, i) => (
-                      <div key={`f-${i}`} className="flex gap-2 p-2.5 rounded-lg border-l-4 border-blue-500 bg-blue-500/5 text-sm">
+                      <div
+                        key={`f-${i}`}
+                        className="flex gap-2 p-2.5 rounded-lg border-l-4 border-blue-500 bg-blue-500/5 text-sm"
+                      >
                         <Lightbulb className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                         <p className="text-foreground">{tip}</p>
                       </div>
                     ))}
                     {(brainstormIdeas?.ideas || []).map((idea, i) => (
-                      <div key={`s-${i}`} className="flex gap-2 p-2.5 rounded-lg border-l-4 border-emerald-500 bg-emerald-500/5 text-sm">
+                      <div
+                        key={`s-${i}`}
+                        className="flex gap-2 p-2.5 rounded-lg border-l-4 border-emerald-500 bg-emerald-500/5 text-sm"
+                      >
                         <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                         <p className="text-foreground">{idea}</p>
-                      </div>
+                        </div>
                     ))}
                     {(liveFeedbackLoading || brainstormLoading) && (
                       <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating…
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />{" "}
+                        Updating…
                       </div>
                     )}
-                  </div>
-                ) : (liveFeedbackLoading || brainstormLoading) ? (
+                    </div>
+                ) : liveFeedbackLoading || brainstormLoading ? (
                   <div className="bg-card border border-border rounded-xl p-4 text-center">
                     <Loader2 className="w-6 h-6 text-muted-foreground mx-auto mb-1.5 animate-spin" />
                     <p className="text-sm text-muted-foreground">Analyzing…</p>
-                  </div>
+                    </div>
                 ) : liveFeedback != null || brainstormIdeas != null ? (
                   <div className="bg-card border border-border rounded-xl p-4 text-center">
-                    <p className="text-sm text-muted-foreground">No solutions or coaching to show yet.</p>
+                    <p className="text-sm text-muted-foreground">
+                      No solutions or coaching to show yet.
+                    </p>
                   </div>
                 ) : !isConnected ? (
                   <div className="bg-card border border-border rounded-xl p-4 text-center">
-                    <p className="text-sm text-muted-foreground">Start a call to see coaching and solution ideas.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Start a call to see coaching and solution ideas.
+                    </p>
                   </div>
                 ) : (
                   <div className="bg-card border border-border rounded-xl p-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      {transcript.length < 20 ? "Say more to get coaching and solutions." : "Coaching and solutions as the call progresses."}
+                      {transcript.length < 20
+                        ? "Say more to get coaching and solutions."
+                        : "Coaching and solutions as the call progresses."}
                     </p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+          </div>
 
             {/* --- AI-Assisted Notes --- */}
             <div className="flex flex-col flex-1 min-h-0">
               <div className="flex items-center gap-2 shrink-0">
-                <div className="p-2 rounded-lg bg-amber-500/10">
+              <div className="p-2 rounded-lg bg-amber-500/10">
                   <StickyNote className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <h2 className="font-medium">Notes</h2>
-                  <p className="text-xs text-muted-foreground">Essential info to assist during the call</p>
-                </div>
               </div>
+              <div>
+                  <h2 className="font-medium">Notes</h2>
+                <p className="text-xs text-muted-foreground">
+                    Essential info to assist during the call
+                </p>
+              </div>
+            </div>
               <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
                 {aiNotesError && (
                   <p className="text-xs text-destructive">{aiNotesError}</p>
                 )}
                 {(() => {
                   const hasNotes =
-                    aiNotes.information.length + aiNotes.problems.length + aiNotes.requests.length + aiNotes.concerns.length > 0;
+                    aiNotes.information.length +
+                      aiNotes.problems.length +
+                      aiNotes.requests.length +
+                      aiNotes.concerns.length >
+                    0;
                   return hasNotes ? (
                     <div className="rounded-lg border border-border bg-card p-2.5 space-y-3">
                       {aiNotes.information.length > 0 && (
                         <div>
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Information</p>
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                            Information
+                          </p>
                           <ul className="text-sm space-y-0.5 list-disc list-inside text-muted-foreground">
                             {aiNotes.information.map((n, i) => (
                               <li key={`inf-${i}`}>{n}</li>
                             ))}
                           </ul>
-                        </div>
+                </div>
                       )}
                       {aiNotes.problems.length > 0 && (
                         <div>
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Problems</p>
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                            Problems
+                          </p>
                           <div className="space-y-2">
                             {aiNotes.problems.map((n, i) => (
                               <div
@@ -922,49 +1166,67 @@ export default function LiveCallPage() {
                                 className="rounded-md border border-red-500/25 bg-red-500/10 px-2 py-1.5 text-sm text-muted-foreground"
                               >
                                 {n}
-                              </div>
+                      </div>
                             ))}
-                          </div>
                         </div>
+                      </div>
                       )}
                       {aiNotes.requests.length > 0 && (
                         <div>
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Requests</p>
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                            Requests
+                          </p>
                           <ul className="text-sm space-y-0.5 list-disc list-inside text-muted-foreground">
                             {aiNotes.requests.map((n, i) => (
                               <li key={`req-${i}`}>{n}</li>
                             ))}
                           </ul>
-                        </div>
+                    </div>
                       )}
                       {aiNotes.concerns.length > 0 && (
                         <div>
-                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Concerns</p>
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                            Concerns
+                          </p>
                           <ul className="text-sm space-y-0.5 list-disc list-inside text-muted-foreground">
                             {aiNotes.concerns.map((n, i) => (
                               <li key={`con-${i}`}>{n}</li>
                             ))}
                           </ul>
-                        </div>
+                  </div>
                       )}
                     </div>
                   ) : null;
                 })()}
                 {(() => {
                   const hasNotes =
-                    aiNotes.information.length + aiNotes.problems.length + aiNotes.requests.length + aiNotes.concerns.length > 0;
-                  return isConnected && !aiNotesLoading && !hasNotes && !aiNotesError ? (
+                    aiNotes.information.length +
+                      aiNotes.problems.length +
+                      aiNotes.requests.length +
+                      aiNotes.concerns.length >
+                    0;
+                  return isConnected &&
+                    !aiNotesLoading &&
+                    !hasNotes &&
+                    !aiNotesError ? (
                     <p className="text-xs text-muted-foreground py-1">
-                      {transcript.length < 20 ? "Say more to capture notes." : "No notes yet."}
+                      {transcript.length < 20
+                        ? "Say more to capture notes."
+                        : "No notes yet."}
                     </p>
                   ) : null;
                 })()}
                 {(() => {
                   const hasNotes =
-                    aiNotes.information.length + aiNotes.problems.length + aiNotes.requests.length + aiNotes.concerns.length > 0;
+                    aiNotes.information.length +
+                      aiNotes.problems.length +
+                      aiNotes.requests.length +
+                      aiNotes.concerns.length >
+                    0;
                   return aiNotesLoading && !hasNotes ? (
                     <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analyzing…
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />{" "}
+                      Analyzing…
                     </div>
                   ) : null;
                 })()}
@@ -980,19 +1242,39 @@ export default function LiveCallPage() {
               </div>
               <div>
                 <h2 className="font-medium">Customer Sentiment</h2>
-                <p className="text-xs text-muted-foreground">Voice & tone analysis</p>
+                <p className="text-xs text-muted-foreground">
+                  Voice & tone analysis
+                </p>
               </div>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6 shrink-0">
               <div className="text-center mb-6">
-                <div className={`text-5xl font-bold mb-2 tabular-nums transition-all duration-500 ease-out ${getSentimentColor(currentSentiment)}`}>{currentSentiment}</div>
-                <div className={`text-base font-medium tabular-nums transition-all duration-500 ease-out ${getSentimentColor(currentSentiment)}`}>Score 0–100</div>
-                <p className="text-xs text-muted-foreground mt-1">From live tone analysis</p>
+                <div
+                  className={`text-5xl font-bold mb-2 tabular-nums transition-all duration-500 ease-out ${getSentimentColor(currentSentiment)}`}
+                >
+                  {currentSentiment}
+                </div>
+                <div
+                  className={`text-base font-medium tabular-nums transition-all duration-500 ease-out ${getSentimentColor(currentSentiment)}`}
+                >
+                  Score 0–100
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  From live tone analysis
+                </p>
               </div>
               <div className="relative h-3 bg-secondary rounded-full overflow-hidden mb-6">
-                <div className={`absolute left-0 top-0 h-full transition-all duration-500 ease-out ${getSentimentBgColor(currentSentiment)}`} style={{ width: `${currentSentiment}%` }} />
-                {isConnected && <div className="absolute top-0 h-full w-1 bg-white/50 animate-pulse transition-all duration-500 ease-out" style={{ left: `${currentSentiment}%` }} />}
+                <div
+                  className={`absolute left-0 top-0 h-full transition-all duration-500 ease-out ${getSentimentBgColor(currentSentiment)}`}
+                  style={{ width: `${currentSentiment}%` }}
+                />
+                {isConnected && (
+                  <div
+                    className="absolute top-0 h-full w-1 bg-white/50 animate-pulse transition-all duration-500 ease-out"
+                    style={{ left: `${currentSentiment}%` }}
+                  />
+                )}
               </div>
               <div className="flex justify-between text-[10px] text-muted-foreground">
                 <span>0</span>
@@ -1002,40 +1284,72 @@ export default function LiveCallPage() {
             </div>
 
             <div className="bg-card border border-border rounded-xl p-4 flex flex-col flex-1 min-h-0">
-              <h3 className="text-sm font-medium mb-3 shrink-0">Sentiment Timeline</h3>
-              <div ref={sentimentTimelineScrollRef} className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-2">
+              <h3 className="text-sm font-medium mb-3 shrink-0">
+                Sentiment Timeline
+              </h3>
+              <div
+                ref={sentimentTimelineScrollRef}
+                className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-2"
+              >
                 {sentimentResults.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Updates as the call progresses.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Updates as the call progresses.
+                  </p>
                 ) : (
                   sentimentResults.map((s, i) => {
-                    const start = i === 0 ? 0 : sentimentResults[i - 1].insertAfterIndex + 1;
+                    const start =
+                      i === 0
+                        ? 0
+                        : sentimentResults[i - 1].insertAfterIndex + 1;
                     const end = s.insertAfterIndex;
                     let blockLabel: string | null = null;
-                    if (end >= 0) blockLabel = end >= start ? `[${start + 1}–${end + 1}]` : `[${end + 1}+]`;
+                    if (end >= 0)
+                      blockLabel =
+                        end >= start
+                          ? `[${start + 1}–${end + 1}]`
+                          : `[${end + 1}+]`;
                     const ri = ranges.findIndex((r) => r.sentiment === s);
                     const isHovered = ri >= 0 && hoveredSentimentIndex === ri;
                     const fromAudio = s.excerpt === "From audio";
                     return (
                       <div
                         key={i}
-                        onMouseEnter={() => ri >= 0 && setHoveredSentimentIndex(ri)}
+                        onMouseEnter={() =>
+                          ri >= 0 && setHoveredSentimentIndex(ri)
+                        }
                         onMouseLeave={() => setHoveredSentimentIndex(null)}
                         className={`border rounded-lg p-3 cursor-default transition-all ${isHovered ? "ring-2 ring-primary border-primary/50 bg-muted/60" : "border-border bg-muted/30"}`}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-2 h-2 rounded-full ${scoreStyles(s.score).dot}`} />
-                          <span className={`text-xs font-medium ${getSentimentColor(scoreToBar(s.score))}`}>{scoreToBar(s.score)}</span>
-                          {blockLabel && <span className="text-[10px] text-muted-foreground">{blockLabel}</span>}
-                          {fromAudio && <span className="text-[10px] text-muted-foreground">(voice)</span>}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{s.sentiment}</p>
-                      </div>
+                          <span
+                            className={`w-2 h-2 rounded-full ${scoreStyles(s.score).dot}`}
+                          />
+                    <span
+                            className={`text-xs font-medium ${getSentimentColor(scoreToBar(s.score))}`}
+                    >
+                            {scoreToBar(s.score)}
+                    </span>
+                          {blockLabel && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {blockLabel}
+                            </span>
+                          )}
+                          {fromAudio && (
+                            <span className="text-[10px] text-muted-foreground">
+                              (voice)
+                            </span>
+                          )}
+                  </div>
+                        <p className="text-xs text-muted-foreground">
+                          {s.sentiment}
+                        </p>
+              </div>
                     );
                   })
                 )}
-              </div>
             </div>
           </div>
+        </div>
         </div>
 
         {/* Transcript */}

@@ -4,7 +4,6 @@ import React, { useRef, useState, useEffect } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import {
-  Upload,
   ClipboardList,
   TrendingUp,
   TrendingDown,
@@ -371,9 +370,9 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background relative">
       <AppSidebar />
 
-      {/* Calm Grid Background */}
+      {/* Calm Grid Background - aligned to main content (right of sidebar) */}
       <div
-        className="fixed inset-0 z-0 pointer-events-none"
+        className="fixed top-0 right-0 bottom-0 left-56 z-0 pointer-events-none"
         style={{
           backgroundImage: `
             linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -394,17 +393,9 @@ export default function DashboardPage() {
           className="hidden"
         />
         {/* Header */}
-        <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur">
           <div>
             <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/upload">
-              <Button className="gap-2 bg-blue-950/70 hover:bg-blue-950/85 backdrop-blur-md border border-blue-800/30 text-white">
-                <Upload className="h-4 w-4" />
-                Upload Call
-              </Button>
-            </Link>
           </div>
         </header>
 

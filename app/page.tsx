@@ -119,9 +119,10 @@ export default function HomePage() {
                   <Button
                     type="button"
                     size="sm"
-                    className="bg-white text-black hover:bg-white/90"
+                    className="bg-white text-black hover:bg-white/90 gap-2"
                     onClick={() => setAccountDialogOpen(true)}
                   >
+                    {account && <User className="h-4 w-4" />}
                     {loginLabel}
                   </Button>
                 </div>
@@ -147,7 +148,7 @@ export default function HomePage() {
                   "Precision.",
                   "Reporting.",
                 ]}
-                mainClassName="text-4xl md:text-5xl font-black text-white/90 whitespace-nowrap px-3 md:px-4 py-1 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md shadow-md shadow-black/15 overflow-hidden"
+                mainClassName="text-4xl md:text-5xl font-black text-white/90 whitespace-nowrap px-3 md:px-4 pt-2 pb-0.5 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md shadow-md shadow-black/15 overflow-hidden flex items-center"
                 staggerFrom={"last"}
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}

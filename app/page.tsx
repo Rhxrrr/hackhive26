@@ -83,7 +83,7 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-4 text-base md:text-lg text-white/80 max-w-3xl mx-auto">
-              QAI transfroms manual over sight into instant data driven performance insight
+            QAI transforms manual oversight into instant, data-driven performance insights through the power of Applied AI.
             </p>
           </div>
           <div className="flex justify-center">

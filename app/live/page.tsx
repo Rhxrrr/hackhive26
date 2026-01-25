@@ -915,8 +915,20 @@ export default function LiveCallPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px",
+          backgroundPosition: "0 0, 0 0",
+        }}
+      />
+
       {/* Header */}
-      <header className="border-b border-border px-6 py-4">
+      <header className="relative z-10 border-b border-border px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
@@ -1021,7 +1033,7 @@ export default function LiveCallPage() {
 
       {/* Error banners */}
       {(error || toneError) && (
-        <div className="max-w-7xl mx-auto px-6 space-y-2">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 space-y-2">
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
@@ -1036,7 +1048,7 @@ export default function LiveCallPage() {
       )}
 
       {/* Main Content - 2 Columns */}
-      <main className="flex-1 min-h-0 flex flex-col max-w-7xl w-full mx-auto p-6">
+      <main className="relative z-10 flex-1 min-h-0 flex flex-col max-w-7xl w-full mx-auto p-6">
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-6">
           {/* Column 1: Coaching & Solutions (blue=feedback, green=solutions) + Notes */}
           <div className="flex flex-col h-full min-h-0 gap-6 pr-2">

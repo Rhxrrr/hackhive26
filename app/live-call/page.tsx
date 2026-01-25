@@ -399,7 +399,19 @@ export default function LiveCallPage() {
 
   return (
     <div className="min-h-screen bg-background p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px",
+          backgroundPosition: "0 0, 0 0",
+        }}
+      />
+
+      <div className="max-w-2xl mx-auto relative z-10 space-y-6">
         {/* Top bar: call time, phone number, Mute, End call (or Start call when idle) */}
         <div className="flex items-center gap-4 py-3 px-4 rounded-lg border border-border bg-card">
           <span className="text-sm font-medium tabular-nums w-12">

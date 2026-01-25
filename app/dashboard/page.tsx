@@ -370,19 +370,6 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background relative">
       <AppSidebar />
 
-      {/* Calm Grid Background - aligned to main content (right of sidebar) */}
-      <div
-        className="fixed top-0 right-0 bottom-0 left-56 z-0 pointer-events-none"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
-          `,
-          backgroundSize: "40px 40px",
-          backgroundPosition: "0 0, 0 0",
-        }}
-      />
-
       {/* Main Content */}
       <main className="pl-56 relative z-10">
         <input

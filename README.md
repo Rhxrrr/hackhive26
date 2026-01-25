@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="public/qai-logo.png" alt="QAI Logo" width="220" />
+</p>
+
+
 ## 🎧 Overview
 
 **QAI** is an AI-first customer service quality assurance platform that understands conversations—not just transcripts. Upload or stream a customer service call and watch QAI automatically surface the moments that matter most. No more scrubbing through hours of audio, no more subjective scoring—QAI listens alongside your quality team and turns conversations into actionable insights.

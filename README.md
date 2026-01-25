@@ -95,7 +95,7 @@ SONIOX_API_KEY=your_soniox_key
 
 ```bash
 
-# npm run dev
+npm run dev
 
 ```
 ---

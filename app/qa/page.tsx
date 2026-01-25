@@ -51,6 +51,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import { getAndClearUploadedFile } from "@/lib/uploaded-file-store";
 
 const INITIAL_TRANSCRIPT = [
   {
@@ -462,12 +463,7 @@ export default function QADashboard() {
     setEditingMessageDraft("");
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) {
-      e.target.value = "";
-      return;
-    }
+  const processFile = async (selectedFile: File) => {
     if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
     setFile(selectedFile);
     setIsLoading(true);
@@ -547,8 +543,20 @@ export default function QADashboard() {
       setIsLoading(false);
       loadTimeoutRef.current = null;
     }
-    e.target.value = "";
   };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    e.target.value = "";
+    if (!selectedFile) return;
+    await processFile(selectedFile);
+  };
+
+  // Consume file passed from /upload page after redirect
+  useEffect(() => {
+    const fromUpload = getAndClearUploadedFile();
+    if (fromUpload) processFile(fromUpload);
+  }, []);
 
   const handleRubricFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

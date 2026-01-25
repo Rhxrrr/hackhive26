@@ -399,7 +399,7 @@ export default function DashboardPage() {
             <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/qa">
+            <Link href="/upload">
               <Button className="gap-2 bg-blue-950/70 hover:bg-blue-950/85 backdrop-blur-md border border-blue-800/30 text-white">
                 <Upload className="h-4 w-4" />
                 Upload Call

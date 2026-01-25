@@ -2,35 +2,27 @@
   <img src="public/qai-logo.png" alt="QAI Logo" width="220" />
 </p>
 
+## ~~ What is QAI? ~~
 
-## 🎧 Overview
+**QAI** is an AI-powered evaluation platform that automates the analysis of customer experience quality assurance conversations using personalized, dynamic metrics. By streaming or uploading calls, QAI identifies "moments that matter" in real-time, eliminating manual scrubbing and subjective scoring.
 
-**QAI** is an AI-first customer service quality assurance platform that understands conversations—not just transcripts. Upload or stream a customer service call and watch QAI automatically surface the moments that matter most. No more scrubbing through hours of audio, no more subjective scoring—QAI listens alongside your quality team and turns conversations into actionable insights.
-
-> *“Show me where the customer became frustrated and how the agent handled it.”*.
-
-QAI analyzes both **what is said** and **how it’s said**, detecting tone shifts, empathy gaps, and resolution moments in real time or post-call. It aligns directly with your company’s QA rubric to generate explainable scores, detailed reports, and coaching-ready feedback.
-
+Acting as an intelligent co-pilot, QAI listens alongside your team to provide:
+- Live Agent Support: Instant, optimal solutions for handling distressed customers.
+- Automated Grading: Real-time call evaluations based on your specific QA rubric.
+- Manager Command Center: A comprehensive suite of tools for monitoring, logging, and coaching agents at scale.
 ---
 
-## ✨ Why QAI?
-
-- **Conversation-Aware QA** — Automatically detect **good**, **bad**, **uncertain**, and **needs improvement** moments throughout a call  
-- **Tone & Sentiment Detection** — Track emotional drift like frustration, hesitation, and relief as conversations unfold  
-- **Interactive Audio Timeline** — Jump directly to key moments instead of listening end-to-end  
-- **Rubric-Based Scoring** — Score agents using your company’s existing QA marking scheme  
-- **Real-Time Agent Coaching** — Surface live suggestions on empathy, tone, and sales techniques during active calls  
-- **Explainable Reports** — Every score is backed by transcript evidence and timestamps  
-- **Built for Quality Coaches** — Reduce manual review time by **50–70%** while reviewing more calls with greater consistency  
-
+## ~~ Why QAI? ~~
+- QAI can 10x the amount of calls a manager can analyze. 
+- Currently, Only 1-4% of calls are analyzed.
+- 80% of customers consider the experience a company provides as important as its product and services.
+- 80% of customer service organization are expected to make the jump for AI tools by 2026.
+- 54% of consumers believe that customer experience at most companys need major improvements.
 ---
 
 QAI turns quality assurance from a manual, reactive process into a **fast, consistent, and coach-driven workflow**—helping teams improve agent performance and customer experience at scale.
 
-## 🚀 Features
-
-### 🎙️ AI-Powered Tools
-
+## ~~ Features ~~
 | Feature | Description |
 |------|-------------|
 | **Conversation-Aware QA** | Analyze full customer service calls and automatically detect **good**, **bad**, **uncertain**, and **needs improvement** moments across the conversation |
@@ -44,39 +36,32 @@ QAI turns quality assurance from a manual, reactive process into a **fast, consi
 | **Synthetic Call Generator** | Create realistic AI-generated customer service calls with emotional progression for testing and demos |
 | **Scalable QA Workflow** | Review more calls in less time while maintaining consistency across reviewers |
 
-## 🛠️ Tech Stack
-
-### 🎨 Frontend
+## ~~ Tech Stack ~~
+### Frontend
 - **Next.js** — Application framework for fast, scalable web experiences  
 - **React** — Interactive UI for timelines, transcripts, and QA dashboards  
 - **TypeScript** — Type-safe data models for QA outputs and API contracts  
-- **Tailwind CSS** — Modern, responsive styling with consistent design  
-
----
-
-### 🧠 AI & APIs
+- **Tailwind CSS** — Modern, responsive styling with consistent design
+- 
+### AI & APIs
 - **OpenAI API** — Contextual analysis for tone detection, QA classification, scoring, and coaching insights  
 - **Soniox API** — Real-time and batch speech-to-text with speaker separation and timestamps  
 
----
-
-### ⚙️ Backend & Services
+### Backend & Services
 - **Node.js / Express** — Core backend for audio ingestion, QA orchestration, and API endpoints  
 
-## ⚡ Quick Start
-
-### ✅ Prerequisites
+---
+## ~~ Quick Start ~~
+### Prerequisites:
 Make sure you have the following installed and set up:
-
 - **Node.js 18+**
 - **npm** or **pnpm**
 - **OpenAI API key** (used for analysis, tone detection, coaching, and live feedback)
-- **Soniox account** (used for real-time and batch transcription)  
-  👉 Get a key at: https://console.soniox.com
+- **Soniox account** (used for real-time and batch transcription)
+ Get a key at: https://console.soniox.com
 
 ---
-
-## 📦 Installation
+## ~~ Installation ~~
 ```bash
 # Navigate to the project directory
 cd hackhive26
@@ -105,9 +90,9 @@ npm run dev
 ```
 ---
 
-👉 http://localhost:3000
+-->> http://localhost:3000
 
-## 📁 Project Structure
+## ~~ Project Structure ~~
 ```bash
 
 hackhive26/
@@ -148,7 +133,7 @@ hackhive26/
 
 ```
 ---
-## ⚠️  Challenges we ran into
+## ~~ Challenges we ran into ~~
 
 - Inconsistent QA interpretations during subtle tone shifts  
 - Overconfident classifications in ambiguous or low-confidence moments  
@@ -163,20 +148,18 @@ hackhive26/
 --- 
 
 
-## 🙏 Acknowledgements
+## ~~ Acknowledgements ~~
 
 - **OpenAI** — Tone detection, contextual analysis, QA scoring, and live coaching insights  
 - **Soniox** — Real-time and batch speech-to-text transcription with speaker separation
 
 ---
 
-## 📬 Contact
+## ~~ Contact ~~
 
 **Team:**
 - Abinan Suthakaran
 - Adam Marcelo
 - Jordan Earle
 - Hamzah Al-Hamadani
-
-
 

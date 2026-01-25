@@ -36,6 +36,19 @@ const mockTeamScores = [
   { category: "Call Closure", score: 95, target: 85, status: "excellent" },
 ];
 
+// Mock data for Top 3 / Bottom 3 agents
+const mockTopAgents = [
+  { name: "Sarah Johnson", initials: "SJ", overall: 94, change: 3.2 },
+  { name: "Michael Lee", initials: "ML", overall: 92, change: 1.8 },
+  { name: "Emily Davis", initials: "ED", overall: 91, change: 2.5 },
+];
+
+const mockBottomAgents = [
+  { name: "James Wilson", initials: "JW", overall: 68, change: -2.1 },
+  { name: "Lisa Anderson", initials: "LA", overall: 71, change: 1.2 },
+  { name: "Robert Brown", initials: "RB", overall: 73, change: -0.8 },
+];
+
 function TeamScoreToday() {
   const [categories, setCategories] = useState<string[]>([]);
   const [teamScores, setTeamScores] = useState(mockTeamScores);
@@ -422,6 +435,98 @@ export default function DashboardPage() {
                 icon={ClipboardList}
                 onAction={triggerRubricUpload}
               />
+            </div>
+
+            {/* Top 3 & Bottom 3 Agents */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Top 3 Agents */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp className="h-4 w-4 text-success" />
+                  <h2 className="text-base font-semibold text-foreground">
+                    Top 3 Agents
+                  </h2>
+                </div>
+                <div className="space-y-3">
+                  {mockTopAgents.map((agent, i) => (
+                    <div
+                      key={agent.name}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success/20 text-xs font-bold text-success">
+                          {i + 1}
+                        </span>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/20 text-sm font-semibold text-success">
+                          {agent.initials}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {agent.name}
+                          </p>
+                          <p className="flex items-center gap-1 text-xs text-success">
+                            <TrendingUp className="h-3 w-3" />
+                            +{agent.change}% this month
+                          </p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-lg font-bold text-success">
+                        {agent.overall}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bottom 3 Agents */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingDown className="h-4 w-4 text-warning" />
+                  <h2 className="text-base font-semibold text-foreground">
+                    Bottom 3 Agents
+                  </h2>
+                </div>
+                <div className="space-y-3">
+                  {mockBottomAgents.map((agent, i) => (
+                    <div
+                      key={agent.name}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/20 text-xs font-bold text-warning">
+                          {3 - i}
+                        </span>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning/20 text-sm font-semibold text-warning">
+                          {agent.initials}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {agent.name}
+                          </p>
+                          <p
+                            className={`flex items-center gap-1 text-xs ${
+                              agent.change >= 0
+                                ? "text-success"
+                                : "text-destructive"
+                            }`}
+                          >
+                            {agent.change >= 0 ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3" />
+                            )}
+                            {agent.change >= 0 ? "+" : ""}
+                            {agent.change}% this month
+                          </p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-lg font-bold text-warning">
+                        {agent.overall}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Team Score Today */}

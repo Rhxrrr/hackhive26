@@ -23,6 +23,31 @@ export default function RubricPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasExistingRubric, setHasExistingRubric] = useState(false)
 
+  const parseRubricCsvToCategories = (csvText: string): string[] => {
+    const lines = csvText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+
+    const firstCol = lines.map((line) => {
+      const cell = line.split(/,|\t|;/)[0] ?? ""
+      return cell.replace(/^["']|["']$/g, "").trim()
+    })
+
+    return firstCol
+      .map((v) => v.replace(/^\d+[\.\)]\s*/, "").trim())
+      .filter((v) => v.length > 0)
+      .filter((v) => v.toLowerCase() !== "category" && v.toLowerCase() !== "categories")
+  }
+
+  const parseRubricRowsToCategories = (rows: unknown[][]): string[] => {
+    return rows
+      .map((r) => String((r?.[0] ?? "") as unknown).replace(/^["']|["']$/g, "").trim())
+      .map((v) => v.replace(/^\d+[\.\)]\s*/, "").trim())
+      .filter((v) => v.length > 0)
+      .filter((v) => v.toLowerCase() !== "category" && v.toLowerCase() !== "categories")
+  }
+
   useEffect(() => {
     // Check if rubric file exists in localStorage
     const rubricData = localStorage.getItem('qa-rubric-file')
@@ -48,27 +73,56 @@ export default function RubricPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.type !== "text/plain" && !file.name.endsWith(".txt")) {
-      alert("Please upload a .txt file")
-      return
-    }
+    try {
+      const name = file.name.toLowerCase()
+      const isCsv = name.endsWith(".csv") || file.type === "text/csv"
+      const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls")
 
-    setUploadedFile(file)
-    setHasChanges(true)
-    setHasExistingRubric(true)
+      let parsedCategories: string[] = []
 
-    // Read and parse the file
-    const text = await file.text()
-    const lines = text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      // Remove numbers at the start of lines (e.g., "1. Category" -> "Category")
-      .map((line) => line.replace(/^\d+[\.\)]\s*/, ""))
-      .filter((line) => line.length > 0)
+      if (isCsv) {
+        const text = await file.text()
+        parsedCategories = parseRubricCsvToCategories(text)
+      } else if (isExcel) {
+        try {
+          const importer = new Function("m", "return import(m)") as (m: string) => Promise<any>
+          const XLSX = await importer("xlsx")
+          const buf = await file.arrayBuffer()
+          const workbook = XLSX.read(buf, { type: "array" })
+          const sheetName = workbook.SheetNames?.[0]
+          const sheet = sheetName ? workbook.Sheets?.[sheetName] : null
+          const rows = sheet ? (XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][]) : []
+          parsedCategories = parseRubricRowsToCategories(rows)
+        } catch {
+          alert("To upload .xlsx files here, install the `xlsx` package or export the file as CSV (.csv).")
+          return
+        }
+      } else {
+        alert("Please upload an Excel file (.xlsx) or CSV export (.csv).")
+        return
+      }
 
-    if (lines.length > 0) {
-      setCategories(lines)
+      if (parsedCategories.length === 0) {
+        alert("No categories found. Put category names in the first column and try again.")
+        return
+      }
+
+      setUploadedFile(file)
+      setCategories(parsedCategories)
+      setHasChanges(false)
+      setHasExistingRubric(true)
+
+      localStorage.setItem(
+        "qa-rubric-file",
+        JSON.stringify({
+          categories: parsedCategories,
+          fileName: file.name,
+          uploadedAt: new Date().toISOString(),
+        })
+      )
+      window.dispatchEvent(new Event("rubric-updated"))
+    } finally {
+      e.target.value = ""
     }
   }
 
@@ -127,7 +181,7 @@ export default function RubricPage() {
               <CardHeader>
                 <CardTitle>{hasExistingRubric ? "Update QA Rubric" : "Upload QA Rubric"}</CardTitle>
                 <CardDescription>
-                  Upload a .txt file containing evaluation categories (one per line). Numbers will be automatically removed.
+                  Upload an Excel file (.xlsx) or a CSV export (.csv). Put category names in the first column.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -137,7 +191,7 @@ export default function RubricPage() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".txt,text/plain"
+                      accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       onChange={handleFileSelect}
                       className="hidden"
                       id="rubric-upload"

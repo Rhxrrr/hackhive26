@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useRef, useState, useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Button } from "@/components/ui/button"
 import { Upload, ClipboardList, TrendingUp, TrendingDown, CheckCircle2, AlertCircle, FileText, BarChart } from "lucide-react"
@@ -183,6 +183,7 @@ function TeamScoreToday() {
 
 export default function DashboardPage() {
   const [hasRubric, setHasRubric] = useState(false)
+  const rubricFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Check if rubric file exists in localStorage
@@ -204,6 +205,96 @@ export default function DashboardPage() {
       window.removeEventListener('rubric-updated', handleStorageChange)
     }
   }, [])
+
+  const triggerRubricUpload = () => {
+    rubricFileInputRef.current?.click()
+  }
+
+  const parseRubricCsvToCategories = (csvText: string): string[] => {
+    const lines = csvText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+
+    // Take first column per row (supports comma, tab, or semicolon delimited exports)
+    const firstCol = lines.map((line) => {
+      const cell = line.split(/,|\t|;/)[0] ?? ""
+      return cell.replace(/^["']|["']$/g, "").trim()
+    })
+
+    return firstCol
+      .map((v) => v.replace(/^\d+[\.\)]\s*/, "").trim())
+      .filter((v) => v.length > 0)
+      .filter((v) => v.toLowerCase() !== "category" && v.toLowerCase() !== "categories")
+  }
+
+  const parseRubricRowsToCategories = (rows: unknown[][]): string[] => {
+    return rows
+      .map((r) => {
+        const v = (r?.[0] ?? "") as unknown
+        return String(v).replace(/^["']|["']$/g, "").trim()
+      })
+      .map((v) => v.replace(/^\d+[\.\)]\s*/, "").trim())
+      .filter((v) => v.length > 0)
+      .filter((v) => v.toLowerCase() !== "category" && v.toLowerCase() !== "categories")
+  }
+
+  const handleRubricFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const name = file.name.toLowerCase()
+
+      const isCsv = name.endsWith(".csv") || file.type === "text/csv"
+      const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls")
+
+      let categories: string[] = []
+
+      if (isCsv) {
+        const text = await file.text()
+        categories = parseRubricCsvToCategories(text)
+      } else if (isExcel) {
+        // Optional: supports real Excel files if `xlsx` is installed.
+        // Falls back to CSV-only flow if not available.
+        try {
+          const importer = new Function("m", "return import(m)") as (m: string) => Promise<any>
+          const XLSX = await importer("xlsx")
+          const buf = await file.arrayBuffer()
+          const workbook = XLSX.read(buf, { type: "array" })
+          const sheetName = workbook.SheetNames?.[0]
+          const sheet = sheetName ? workbook.Sheets?.[sheetName] : null
+          const rows = sheet ? (XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][]) : []
+          categories = parseRubricRowsToCategories(rows)
+        } catch {
+          alert("To upload .xlsx files, install the `xlsx` package or export the file as CSV (.csv).")
+          return
+        }
+      } else {
+        alert("Please upload an Excel file (.xlsx) or CSV export (.csv).")
+        return
+      }
+
+      if (categories.length === 0) {
+        alert("No categories found. Put category names in the first column and try again.")
+        return
+      }
+
+      localStorage.setItem(
+        "qa-rubric-file",
+        JSON.stringify({
+          categories,
+          fileName: file.name,
+          uploadedAt: new Date().toISOString(),
+        })
+      )
+      window.dispatchEvent(new Event("rubric-updated"))
+      setHasRubric(true)
+    } finally {
+      // allow re-uploading the same file
+      e.target.value = ""
+    }
+  }
   return (
     <div className="min-h-screen bg-background relative">
       <AppSidebar />
@@ -223,6 +314,13 @@ export default function DashboardPage() {
       
       {/* Main Content */}
       <main className="pl-56 relative z-10">
+        <input
+          ref={rubricFileInputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={handleRubricFileSelect}
+          className="hidden"
+        />
         {/* Header */}
         <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur">
           <div>
@@ -264,11 +362,11 @@ export default function DashboardPage() {
               <QuickActionCard
                 title="QA Rubric"
                 count={hasRubric ? undefined : undefined}
-                description={hasRubric ? "Update evaluation criteria" : "Add evaluation criteria"}
-                href="/rubric"
+                description={hasRubric ? "Update evaluation criteria (upload CSV)" : "Add evaluation criteria (upload CSV)"}
                 actionLabel={hasRubric ? "Update Rubric" : "Add Rubric"}
                 variant="info"
                 icon={ClipboardList}
+                onAction={triggerRubricUpload}
               />
             </div>
 
@@ -285,18 +383,20 @@ function QuickActionCard({
   title, 
   count, 
   description, 
-  href, 
+  href,
   actionLabel,
   variant = "default",
-  icon: Icon
+  icon: Icon,
+  onAction,
 }: {
   title: string
   count?: number
   description: string
-  href: string
+  href?: string
   actionLabel: string
   variant?: "default" | "warning" | "success" | "info"
   icon?: React.ComponentType<{ className?: string }>
+  onAction?: () => void
 }) {
   const variantStyles = {
     default: "border-border bg-card",
@@ -326,11 +426,23 @@ function QuickActionCard({
           <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         </div>
       </div>
-      <Link href={href}>
-        <Button variant="outline" size="sm" className="mt-3 w-full bg-transparent text-xs h-7">
+      {href ? (
+        <Link href={href}>
+          <Button variant="outline" size="sm" className="mt-3 w-full bg-transparent text-xs h-7">
+            {actionLabel}
+          </Button>
+        </Link>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 w-full bg-transparent text-xs h-7"
+          onClick={onAction}
+        >
           {actionLabel}
         </Button>
-      </Link>
+      )}
     </div>
   )
 }

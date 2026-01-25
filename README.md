@@ -143,7 +143,7 @@ hackhive26/
 
 ```
 ---
-## ⚠️ Challenges we ran into
+## ⚠️  Challenges we ran into
 
 - Inconsistent QA interpretations during subtle tone shifts  
 - Overconfident classifications in ambiguous or low-confidence moments  
@@ -154,6 +154,9 @@ hackhive26/
 - Inconsistent behavior across branches during experimentation  
 - Early QA outputs felt like a black box for quality coaches  
 - Difficulty validating AI decisions without emphasizing explainability
+
+--- 
+
 
 ## 🙏 Acknowledgements
 

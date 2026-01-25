@@ -13,7 +13,6 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts"
 import Link from "next/link"
 import { TrendingUp, AlertTriangle, ExternalLink, ArrowRight, Brain } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { AppSidebar } from "@/components/app-sidebar"
 
 const agents = [
@@ -149,9 +148,6 @@ export default function AgentPerformancePage() {
             <p className="text-sm text-muted-foreground">Track QA scores and coaching insights</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/">QA Review</Link>
-            </Button>
             <Select value={agent} onValueChange={setAgent}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select agent" />

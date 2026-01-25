@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Upload,
@@ -10,8 +10,8 @@ import {
   BarChart3,
   Users,
   Headphones,
-} from "lucide-react"
-import { cn } from "@/lib/utils"
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -19,15 +19,15 @@ const navigation = [
   { name: "Call Reviews", href: "/reviews", icon: Headphones },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Team", href: "/team", icon: Users },
-]
+];
 
 const secondaryNavigation = [
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Help", href: "/help", icon: HelpCircle },
-]
+];
 
 export function AppSidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   return (
     <>
@@ -52,7 +52,11 @@ export function AppSidebar() {
             className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4 hover:bg-sidebar-accent transition-colors"
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white shrink-0 overflow-visible">
-              <img src="/qai-logo.png" alt="QAI" className="h-10 w-10 object-contain" />
+              <img
+                src="/qai-logo.png"
+                alt="QAI"
+                className="h-28 w-28 object-contain"
+              />
             </div>
             <span className="text-base font-semibold text-sidebar-foreground">
               QAI
@@ -65,7 +69,7 @@ export function AppSidebar() {
               Main Menu
             </div>
             {navigation.map((item) => {
-              const isActive = pathname === item.href
+              const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
@@ -80,14 +84,14 @@ export function AppSidebar() {
                   <item.icon className="h-4 w-4" />
                   {item.name}
                 </Link>
-              )
+              );
             })}
           </nav>
 
           {/* Secondary Navigation */}
           <div className="border-t border-sidebar-border px-2 py-3">
             {secondaryNavigation.map((item) => {
-              const isActive = pathname === item.href
+              const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
@@ -102,7 +106,7 @@ export function AppSidebar() {
                   <item.icon className="h-4 w-4" />
                   {item.name}
                 </Link>
-              )
+              );
             })}
           </div>
 
@@ -125,5 +129,5 @@ export function AppSidebar() {
         </div>
       </aside>
     </>
-  )
+  );
 }

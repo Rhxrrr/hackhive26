@@ -3,7 +3,7 @@
 import React, { useRef, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
-import { Upload, Headphones } from "lucide-react";
+import { Upload, Phone } from "lucide-react";
 import { setUploadedFile } from "@/lib/uploaded-file-store";
 import { cn } from "@/lib/utils";
 
@@ -110,8 +110,8 @@ export default function UploadCallPage() {
                 )}
               >
                 <div className="flex flex-col items-center gap-4">
-                  <div className="p-4 rounded-full bg-blue-500/15">
-                    <Upload className="h-10 w-10 text-blue-500" />
+                  <div className="p-4 rounded-full bg-white">
+                    <Upload className="h-10 w-10 text-black" />
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-foreground">
@@ -131,9 +131,9 @@ export default function UploadCallPage() {
                         e.stopPropagation();
                         inputRef.current?.click();
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white text-black font-medium border border-border hover:bg-muted/50 transition-colors cursor-pointer"
                     >
-                      <Headphones className="h-4 w-4 text-white" />
+                      <Phone className="h-4 w-4 text-black" />
                       Select File
                     </button>
                   </div>

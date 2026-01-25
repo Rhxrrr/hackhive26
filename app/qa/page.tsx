@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Pencil,
   Sparkles,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -230,6 +232,7 @@ export default function QADashboard() {
   const rubricFileInputRef = useRef<HTMLInputElement>(null);
   const [transcript, setTranscript] = useState(INITIAL_TRANSCRIPT);
   const [report, setReport] = useState(INITIAL_REPORT);
+  const [hasReportData, setHasReportData] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [callDuration, setCallDuration] = useState<number>(180);
 
@@ -493,6 +496,7 @@ export default function QADashboard() {
     setFile(selectedFile);
     setTranscript([]);
     setReport(INITIAL_REPORT);
+    setHasReportData(false);
     setCallDuration(180);
     setMomentsGood([]);
     setMomentsBad([]);
@@ -514,6 +518,7 @@ export default function QADashboard() {
     setHighlightedMomentType(null);
     setHighlightedLine(null);
     setReport(INITIAL_REPORT);
+    setHasReportData(false);
     setMomentsGood([]);
     setMomentsBad([]);
     setMomentsImprovement([]);
@@ -608,6 +613,7 @@ export default function QADashboard() {
     setMomentsBad(bad);
     setMomentsImprovement(improvement);
     setMomentsUncertain(uncertain);
+    setHasReportData(true);
     toast.success("Analysis complete");
   };
 
@@ -1169,26 +1175,42 @@ export default function QADashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={downloadReport}
-              className="h-8 shrink-0"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download
-            </Button>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-8 shrink-0">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Full Report
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Full QA Report</DialogTitle>
-                </DialogHeader>
+            {hasReportData && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-8 shrink-0">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Full Report
+                  </Button>
+                </DialogTrigger>
+                <DialogContent
+                  className="max-w-4xl max-h-[90vh] overflow-y-auto"
+                  showCloseButton={false}
+                >
+                  <DialogHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                    <DialogTitle>Full QA Report</DialogTitle>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadReport}
+                        className="h-8 shrink-0"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </Button>
+                      <DialogClose asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          aria-label="Close"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </DialogClose>
+                    </div>
+                  </DialogHeader>
                 <div className="space-y-7 py-5">
                   <div className="grid grid-cols-2 gap-5 text-sm">
                     <div>
@@ -1414,6 +1436,7 @@ export default function QADashboard() {
                 </div>
               </DialogContent>
             </Dialog>
+            )}
             <input
               ref={rubricFileInputRef}
               type="file"

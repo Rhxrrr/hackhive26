@@ -4,6 +4,7 @@ import React from "react";
 import Silk from "@/components/Silk";
 import BlurText from "@/components/BlurText";
 import Link from "next/link";
+import RotatingText from "./RotatingText";
 
 export default function HomePage() {
   const handleAnimationComplete = () => {
@@ -34,14 +35,29 @@ export default function HomePage() {
                 className="text-4xl md:text-5xl font-black text-white"
               />
             </h1>
-            <BlurText
-              text="Enhancing QA Performance."
-              delay={200}
-              animateBy="words"
-              direction="top"
-              onAnimationComplete={handleAnimationComplete}
-              className="text-xl md:text-2xl text-white/90 mx-auto justify-center"
-            />
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-xl md:text-2xl text-white/90">
+                Enhancing QA
+              </span>
+              <RotatingText
+                texts={[
+                  "Accuracy.",
+                  "Intelligence.",
+                  "Analytics.",
+                  "Precision.",
+                  "Reporting.",
+                ]}
+                mainClassName="text-xl md:text-2xl font-medium text-white/90 whitespace-nowrap px-2.5 md:px-3 py-0.5 md:py-1 rounded-lg bg-white/10 border border-white/20 backdrop-blur-md shadow-md shadow-black/15 overflow-hidden"
+                staggerFrom={"last"}
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "-120%" }}
+                staggerDuration={0.025}
+                splitLevelClassName="overflow-hidden pb-0.5 sm:pb-1 md:pb-1"
+                transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                rotationInterval={2000}
+              />
+            </div>
           </div>
           <div className="flex justify-center">
             <Link href="/dashboard" prefetch={true}>

@@ -295,7 +295,7 @@ export default function AgentPerformancePage() {
             <CardTitle className="text-foreground">Recent Calls</CardTitle>
             <CardDescription>Latest reviewed calls for this agent</CardDescription>
             <CardAction>
-              <Link href={`/call-reviews?agent=${encodeURIComponent(agent)}`} className="flex items-center gap-1 text-sm font-medium text-foreground hover:text-muted-foreground transition-colors">
+              <Link href={`/reviews?agent=${encodeURIComponent(agent)}`} className="flex items-center gap-1 text-sm font-medium text-foreground hover:text-muted-foreground transition-colors">
                 View All
                 <ArrowRight className="h-4 w-4" />
               </Link>

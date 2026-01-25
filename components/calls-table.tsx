@@ -27,12 +27,14 @@ import {
 } from "lucide-react"
 
 interface CallsTableProps {
+  calls?: Call[]
   limit?: number
   showFilters?: boolean
 }
 
-export function CallsTable({ limit, showFilters = false }: CallsTableProps) {
-  const calls = limit ? mockCalls.slice(0, limit) : mockCalls
+export function CallsTable({ calls, limit, showFilters = false }: CallsTableProps) {
+  const sourceCalls = calls ?? mockCalls
+  const rows = limit ? sourceCalls.slice(0, limit) : sourceCalls
 
   return (
     <Card className="border-border bg-card">
@@ -61,9 +63,15 @@ export function CallsTable({ limit, showFilters = false }: CallsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {calls.map((call) => (
-              <CallRow key={call.id} call={call} />
-            ))}
+            {rows.length === 0 ? (
+              <TableRow className="border-border">
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  No calls match your filters.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((call) => <CallRow key={call.id} call={call} />)
+            )}
           </TableBody>
         </Table>
       </CardContent>

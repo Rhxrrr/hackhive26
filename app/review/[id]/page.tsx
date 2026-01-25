@@ -78,7 +78,7 @@ export default function CallReviewPage({ params }: PageProps) {
         <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between px-8">
             <div className="flex items-center gap-4">
-              <Link href="/">
+              <Link href="/reviews">
                 <Button variant="ghost" size="icon" className="h-8 w-8">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>

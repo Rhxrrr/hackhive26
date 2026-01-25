@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { CallsTable } from "@/components/calls-table"
 import { Button } from "@/components/ui/button"
@@ -12,16 +12,99 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { 
   Search, 
   Filter,
   Calendar,
   SlidersHorizontal
 } from "lucide-react"
+import { getStatusColor, getStatusLabel, mockCalls, type CallStatus } from "@/lib/mock-data"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 export default function ReviewsPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [agentFilter, setAgentFilter] = useState<string>("all")
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const [search, setSearch] = useState<string>(() => searchParams.get("q") ?? "")
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const s = searchParams.get("status")
+    if (s === "processing" || s === "ready" || s === "needs_attention" || s === "completed") return s
+    return "all"
+  })
+  const [agentFilter, setAgentFilter] = useState<string>(() => searchParams.get("agent") ?? "all")
+
+  const agentOptions = useMemo(() => {
+    const names = Array.from(new Set(mockCalls.map((c) => c.agentName))).sort()
+    return names
+  }, [])
+
+  const setUrlState = useCallback(
+    (next: { q?: string; status?: string; agent?: string }) => {
+      const qs = new URLSearchParams(Array.from(searchParams.entries()))
+
+      if (typeof next.q === "string") {
+        const v = next.q.trim()
+        if (v) qs.set("q", v)
+        else qs.delete("q")
+      }
+
+      if (typeof next.status === "string") {
+        if (next.status && next.status !== "all") qs.set("status", next.status)
+        else qs.delete("status")
+      }
+
+      if (typeof next.agent === "string") {
+        if (next.agent && next.agent !== "all") qs.set("agent", next.agent)
+        else qs.delete("agent")
+      }
+
+      const suffix = qs.toString()
+      router.replace(suffix ? `${pathname}?${suffix}` : pathname, { scroll: false })
+    },
+    [router, pathname, searchParams]
+  )
+
+  // Keep state in sync with back/forward navigation + deep links (e.g. from Analytics)
+  useEffect(() => {
+    const q = searchParams.get("q") ?? ""
+    const s = searchParams.get("status")
+    const a = searchParams.get("agent") ?? "all"
+
+    setSearch(q)
+    setStatusFilter(
+      s === "processing" || s === "ready" || s === "needs_attention" || s === "completed" ? s : "all"
+    )
+    setAgentFilter(agentOptions.includes(a) ? a : "all")
+  }, [searchParams, agentOptions])
+
+  const filteredCalls = useMemo(() => {
+    const q = search.trim().toLowerCase()
+
+    return mockCalls.filter((call) => {
+      if (statusFilter !== "all" && call.status !== statusFilter) return false
+      if (agentFilter !== "all" && call.agentName !== agentFilter) return false
+
+      if (q.length > 0) {
+        const hay = `${call.id} ${call.agentName} ${call.customerName} ${call.date}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+
+      return true
+    })
+  }, [search, statusFilter, agentFilter])
+
+  const counts = useMemo(() => {
+    const base: Record<CallStatus, number> = {
+      processing: 0,
+      ready: 0,
+      needs_attention: 0,
+      completed: 0,
+    }
+    for (const c of filteredCalls) base[c.status] += 1
+    return base
+  }, [filteredCalls])
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,37 +127,55 @@ export default function ReviewsPage() {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
+                  <Input
+                    value={search}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setSearch(v)
+                      setUrlState({ q: v })
+                    }}
                     placeholder="Search calls..."
-                    className="h-9 w-72 rounded-lg border border-input bg-muted pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="h-9 w-72 bg-muted pl-10"
                   />
                 </div>
                 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v)
+                    setUrlState({ status: v })
+                  }}
+                >
                   <SelectTrigger className="w-[180px] bg-muted border-border">
                     <Filter className="h-4 w-4 mr-2" />
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="ready">Ready for Review</SelectItem>
-                    <SelectItem value="needs_attention">Needs Attention</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="processing">{getStatusLabel("processing")}</SelectItem>
+                    <SelectItem value="ready">{getStatusLabel("ready")}</SelectItem>
+                    <SelectItem value="needs_attention">{getStatusLabel("needs_attention")}</SelectItem>
+                    <SelectItem value="completed">{getStatusLabel("completed")}</SelectItem>
                   </SelectContent>
                 </Select>
 
-                <Select value={agentFilter} onValueChange={setAgentFilter}>
+                <Select
+                  value={agentFilter}
+                  onValueChange={(v) => {
+                    setAgentFilter(v)
+                    setUrlState({ agent: v })
+                  }}
+                >
                   <SelectTrigger className="w-[180px] bg-muted border-border">
                     <SelectValue placeholder="Agent" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="all">All Agents</SelectItem>
-                    <SelectItem value="marcus">Marcus Chen</SelectItem>
-                    <SelectItem value="emily">Emily Rodriguez</SelectItem>
-                    <SelectItem value="david">David Park</SelectItem>
-                    <SelectItem value="lisa">Lisa Wang</SelectItem>
+                    {agentOptions.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -93,24 +194,24 @@ export default function ReviewsPage() {
             {/* Quick Stats */}
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="bg-muted text-muted-foreground">
-                5 total calls
+                {filteredCalls.length} total calls
               </Badge>
-              <Badge variant="secondary" className="bg-info/20 text-info">
-                1 processing
+              <Badge variant="secondary" className={getStatusColor("processing")}>
+                {counts.processing} processing
               </Badge>
-              <Badge variant="secondary" className="bg-success/20 text-success">
-                1 ready
+              <Badge variant="secondary" className={getStatusColor("ready")}>
+                {counts.ready} ready
               </Badge>
-              <Badge variant="secondary" className="bg-warning/20 text-warning">
-                2 needs attention
+              <Badge variant="secondary" className={getStatusColor("needs_attention")}>
+                {counts.needs_attention} needs attention
               </Badge>
               <Badge variant="secondary" className="bg-muted text-muted-foreground">
-                1 completed
+                {counts.completed} completed
               </Badge>
             </div>
 
             {/* Table */}
-            <CallsTable showFilters />
+            <CallsTable showFilters calls={filteredCalls} />
           </div>
         </div>
       </main>

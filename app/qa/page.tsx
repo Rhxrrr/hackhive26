@@ -3,8 +3,10 @@
 import React from "react";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Upload,
+  ArrowLeft,
   ArrowUp,
   ArrowDown,
   AlertTriangle,
@@ -192,6 +194,7 @@ const INITIAL_REPORT = {
 };
 
 export default function QADashboard() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,6 +242,16 @@ export default function QADashboard() {
   };
   const sortByTime = (a: Moment, b: Moment) =>
     parseTimeToSeconds(a.time) - parseTimeToSeconds(b.time);
+
+  const handleBack = () => {
+    // Prefer going "back" within the app; otherwise fall back to Upload.
+    const idx = (window.history.state as any)?.idx;
+    if (typeof idx === "number" && idx > 0) {
+      router.back();
+      return;
+    }
+    router.push("/upload");
+  };
 
   const formatTimeSec = (s: number) =>
     `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -1050,13 +1063,26 @@ export default function QADashboard() {
       <div className="max-w-7xl mx-auto flex flex-col gap-6 flex-1 min-h-0 w-full">
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
-              Voice Call QA Review
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              AI-powered analysis of customer service calls
-            </p>
+          <div className="flex items-start gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={handleBack}
+              aria-label="Back"
+              title="Back"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">
+                Voice Call QA Review
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                AI-powered analysis of customer service calls
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={downloadReport}>

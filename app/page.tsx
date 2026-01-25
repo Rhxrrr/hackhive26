@@ -335,8 +335,6 @@ export default function QADashboard() {
     e.target.value = "";
   };
 
-  const tryDemoUpload = () => fileInputRef.current?.click();
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -599,7 +597,7 @@ export default function QADashboard() {
                       Upload Call Recording
                     </h2>
                     <p className="text-sm text-muted-foreground mt-1.5 max-w-md mx-auto">
-                      Drag and drop your MP3 files here, or click to browse. AI
+                      Drag and drop your audio file here, or click to browse. AI
                       will automatically transcribe, score, and summarize the
                       call.
                     </p>
@@ -612,14 +610,6 @@ export default function QADashboard() {
                       <FileAudio className="w-4 h-4" />
                       Select Files
                     </label>
-                    <span className="text-sm text-muted-foreground">or</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={tryDemoUpload}
-                    >
-                      Try Demo Upload
-                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Supported formats: MP3, M4A (max 100MB per file)

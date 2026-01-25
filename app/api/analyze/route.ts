@@ -3,7 +3,8 @@ import { z } from "zod"
 
 const analysisSchema = z.object({
   overallScore: z.number().describe("Overall call quality score from 0-100"),
-  summary: z.string().describe("Brief summary of the call performance"),
+  summary: z.string().describe("Brief summary of the call performance for QA/feedback"),
+  conversationSummary: z.string().describe("Brief summary of what was discussed in the call—the actual conversation content, topics, and outcome. This is a neutral summary of the call for someone who wants to know what happened, not feedback for the agent."),
   markers: z.array(
     z.object({
       timestamp: z.number().describe("Timestamp in seconds where this event occurs"),
@@ -35,10 +36,11 @@ ${transcript || "No transcript provided - generate a realistic sample analysis f
 
 Provide:
 1. An overall quality score (0-100)
-2. A brief summary
-3. Timestamped markers indicating good, bad, or uncertain moments (include at least 6-10 markers spread across the call)
-4. List of strengths
-5. List of areas for improvement
+2. A brief summary (QA/performance feedback for the agent)
+3. A conversation summary: a neutral summary of what was actually discussed in the call—the topic, key points, resolution, and outcome—for someone who wants to know what happened in the conversation (not agent feedback)
+4. Timestamped markers indicating good, bad, or uncertain moments (include at least 6-10 markers spread across the call)
+5. List of strengths
+6. List of areas for improvement
 
 For uncertain markers, use them when the context is ambiguous or when you cannot definitively judge whether the agent's response was appropriate.`,
   })

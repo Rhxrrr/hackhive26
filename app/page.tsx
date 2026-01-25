@@ -154,120 +154,15 @@ const INITIAL_TRANSCRIPT = [
   },
 ];
 
-const goodMoments = [
-  {
-    time: "0:00",
-    message: "Professional greeting with name introduction",
-    lineId: 1,
-    rubric: "Opening Protocol",
-    rubricSection: "1.1",
-    rubricDescription:
-      "Agent must greet customer professionally, state company name, provide their own name, and offer assistance.",
-  },
-  {
-    time: "0:15",
-    message: "Showed empathy and took immediate action",
-    lineId: 3,
-    rubric: "Empathy & Acknowledgment",
-    rubricSection: "2.3",
-    rubricDescription:
-      "Agent demonstrates genuine empathy by acknowledging customer's situation and commits to immediate resolution.",
-  },
-  {
-    time: "0:45",
-    message: "Validated customer's frustration appropriately",
-    lineId: 7,
-    rubric: "Empathy & Acknowledgment",
-    rubricSection: "2.1",
-    rubricDescription:
-      "Agent validates customer emotions without being dismissive or over-apologetic.",
-  },
-  {
-    time: "1:25",
-    message: "Recovered well after mistake, took ownership",
-    lineId: 13,
-    rubric: "Error Recovery",
-    rubricSection: "5.2",
-    rubricDescription:
-      "When mistakes occur, agent takes ownership, apologizes sincerely, and immediately works toward resolution.",
-  },
-  {
-    time: "2:10",
-    message: "Strong closing with brand mention",
-    lineId: 19,
-    rubric: "Closing Protocol",
-    rubricSection: "6.1",
-    rubricDescription:
-      "Agent thanks customer, reinforces brand, and ends call on positive note.",
-  },
-];
-
-const badMoments = [
-  {
-    time: "1:10",
-    message: "Attempted unnecessary transfer, showed uncertainty",
-    lineId: 11,
-    rubric: "Call Handling",
-    rubricSection: "3.4",
-    rubricDescription:
-      "Agent should attempt to resolve issues within their capability before considering transfer. Avoid unnecessary transfers.",
-  },
-  {
-    time: "0:55",
-    message: "Asked about router restart without checking notes first",
-    lineId: 9,
-    rubric: "Troubleshooting Protocol",
-    rubricSection: "4.2",
-    rubricDescription:
-      "Agent must review account notes and previous troubleshooting steps before asking customer to repeat actions.",
-  },
-];
-
-const needsImprovementMoments = [
-  {
-    time: "0:30",
-    message:
-      "Could have acknowledged the duration of the issue more empathetically",
-    lineId: 5,
-    rubric: "Empathy & Acknowledgment",
-    rubricSection: "2.2",
-    rubricDescription:
-      "When customers mention extended issues, agent should specifically acknowledge the duration and inconvenience caused.",
-  },
-  {
-    time: "1:40",
-    message: "Should have explained what was done to fix the issue",
-    lineId: 15,
-    rubric: "Resolution Communication",
-    rubricSection: "5.4",
-    rubricDescription:
-      "Agent should explain the resolution steps taken so customer understands what was fixed and can reference if issue recurs.",
-  },
-];
-
-const uncertainMoments = [
-  {
-    time: "0:52",
-    message:
-      "Short customer response - unclear if tone was satisfied or dismissive",
-    lineId: 8,
-    rubric: "Customer Sentiment",
-    rubricSection: "7.1",
-    rubricDescription:
-      "AI could not determine customer sentiment from brief response. Manual review recommended to assess tone.",
-  },
-  {
-    time: "1:35",
-    message: "Customer tone unclear - could be genuine relief or sarcasm",
-    lineId: 14,
-    rubric: "Customer Sentiment",
-    rubricSection: "7.2",
-    rubricDescription:
-      "The phrase 'Finally, thank you' could indicate frustration or genuine appreciation. Context and audio tone needed for accurate assessment.",
-  },
-];
-
-type Moment = (typeof goodMoments)[number] & { rubricExact?: string };
+type Moment = {
+  time: string;
+  message: string;
+  lineId: number;
+  rubric: string;
+  rubricSection: string;
+  rubricDescription: string;
+  rubricExact?: string;
+};
 type MomentCategory = "good" | "bad" | "improvement" | "uncertain";
 
 const INITIAL_REPORT = {
@@ -442,18 +337,10 @@ export default function QADashboard() {
     };
   };
 
-  const [momentsGood, setMomentsGood] = useState<Moment[]>(() =>
-    [...goodMoments].sort(sortByTime),
-  );
-  const [momentsBad, setMomentsBad] = useState<Moment[]>(() =>
-    [...badMoments].sort(sortByTime),
-  );
-  const [momentsImprovement, setMomentsImprovement] = useState<Moment[]>(() =>
-    [...needsImprovementMoments].sort(sortByTime),
-  );
-  const [momentsUncertain, setMomentsUncertain] = useState<Moment[]>(() =>
-    [...uncertainMoments].sort(sortByTime),
-  );
+  const [momentsGood, setMomentsGood] = useState<Moment[]>(() => []);
+  const [momentsBad, setMomentsBad] = useState<Moment[]>(() => []);
+  const [momentsImprovement, setMomentsImprovement] = useState<Moment[]>(() => []);
+  const [momentsUncertain, setMomentsUncertain] = useState<Moment[]>(() => []);
 
   const moveMoment = (
     moment: Moment,
@@ -597,12 +484,21 @@ export default function QADashboard() {
         return;
       }
       const tx = Array.isArray(trData.transcript) ? trData.transcript : [];
-      const rawText = (trData.rawText ?? tx.map((l) => l.text).join(" ")) || "";
       const duration = trData.duration || 180;
       setTranscript(tx.length > 0 ? tx : INITIAL_TRANSCRIPT);
 
+      const transcriptForAnalyze =
+        tx.length > 0
+          ? tx
+              .map(
+                (l) =>
+                  `${l.speaker === "agent" ? "Agent" : "Customer"}: ${l.text}`
+              )
+              .join("\n")
+          : (trData.rawText ?? tx.map((l) => l.text).join(" ")) || "";
+
       const anForm = new FormData();
-      anForm.append("transcript", rawText);
+      anForm.append("transcript", transcriptForAnalyze);
       anForm.append("duration", String(duration));
       if (rubricFile) {
         anForm.append("rubricFile", rubricFile);

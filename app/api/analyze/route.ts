@@ -34,12 +34,12 @@ const analysisSchema = z.object({
         category: z
           .string()
           .describe(
-            "The section title from the rubric, exactly as it appears (e.g. Introduction, Empathy). When no rubric: e.g. greeting, empathy, resolution.",
+            "The EXACT section title/heading from the rubric—character-for-character, no paraphrasing. When no rubric: e.g. greeting, empathy, resolution.",
           ),
         rubricExact: z
           .string()
           .describe(
-            "When a rubric is provided: the description/criterion for this section from the rubric, verbatim—same as in the rubric. When no rubric: \"\".",
+            "When rubric: copy the section's description exactly as it appears—no paraphrasing. When no rubric: \"\".",
           ),
         description: z
           .string()
@@ -115,7 +115,53 @@ export async function POST(req: Request) {
           if (Array.isArray(names) && sheets) {
             for (const name of names) {
               const sheet = sheets[name];
-              if (sheet) {
+              if (!sheet) continue;
+              const aoa = XLSX.utils.sheet_to_json(sheet, {
+                header: 1,
+                defval: "",
+                raw: false,
+              }) as (string | number)[][];
+              if (!Array.isArray(aoa) || aoa.length === 0) {
+                const csv = XLSX.utils.sheet_to_csv(sheet);
+                if (csv?.trim()) parts.push(csv);
+                continue;
+              }
+              const first = (aoa[0] || []) as (string | number)[];
+              const firstStr = first.map((c) => String(c ?? "").toLowerCase());
+              const looksLikeHeader = firstStr.some(
+                (s) =>
+                  /section|category|topic|description|criteria|criterion|requirement|#|number/i.test(
+                    s
+                  ) || (s.length <= 2 && /^\d+$/.test(s))
+              );
+              let titleCol = 0;
+              let descCol = 1;
+              if (looksLikeHeader && first.length >= 2) {
+                for (let i = 0; i < first.length; i++) {
+                  const t = String(first[i] ?? "").toLowerCase();
+                  if (
+                    /description|criteria|criterion|requirement|details|expectation|standard|notes/.test(
+                      t
+                    )
+                  )
+                    descCol = i;
+                  else if (/section|category|topic|item/.test(t)) titleCol = i;
+                }
+              }
+              const blocks: string[] = [];
+              const start = looksLikeHeader ? 1 : 0;
+              for (let r = start; r < aoa.length; r++) {
+                const row = (aoa[r] || []) as (string | number)[];
+                const title = String(row[titleCol] ?? "").trim();
+                const desc = String(row[descCol] ?? "").trim();
+                if (!desc) continue;
+                blocks.push(
+                  `---\nSection: ${title || `Item ${r + 1}`}\nDescription: ${desc}\n`
+                );
+              }
+              if (blocks.length > 0) {
+                parts.push(blocks.join("\n"));
+              } else {
                 const csv = XLSX.utils.sheet_to_csv(sheet);
                 if (csv?.trim()) parts.push(csv);
               }
@@ -157,39 +203,27 @@ export async function POST(req: Request) {
       ? ` (extracted from the **uploaded rubric file** \`${rubricFileName}\`)`
       : "";
 
+    const hasStructuredRubric =
+      rubricText.includes("---") &&
+      rubricText.includes("Section:") &&
+      rubricText.includes("Description:");
+
     const rubricBlock = rubricText
       ? `
 
-**Evaluation rubric${rubricSource} – use this as the authoritative source for scoring and for all good, bad, needs improvement, and uncertain markers.**
+**Rubric${rubricSource} — copy exactly as written**
 
-The text between the lines below is the rubric. For each marker: copy the **section title** into \`category\` and that section's **description** (the criterion text) into \`rubricExact\` verbatim.
+Copy the **description** exactly as it appears in the rubric—same words, punctuation, and order; no paraphrasing. \`category\` = section title. \`rubricExact\` = that section's description, exactly as written. ${
+        hasStructuredRubric
+          ? "If the rubric uses 'Description: X', use the exact text after 'Description: '."
+          : "Use the longer criterion text, not the section title."
+        } \`description\` = your comment only. Never leave \`rubricExact\` empty. Markers only for explicit criteria; strengths/improvements cite exact section titles; categoryScores from matching rubric criteria.
 
 ---
-${rubricText}
----
 
-**For each marker when a rubric is provided:**
-- \`category\` = the **section title** from the rubric, exactly as it appears (e.g. Introduction, Empathy).
-- \`rubricExact\` = the **description** for that section from the rubric—copy it verbatim, same as in the rubric. Do not leave empty.
-- \`description\` = **your comment about this specific message only**: how this moment relates to the rubric. Unique to this message; do not repeat the rubric text.
+**RUBRIC:**
 
-**When a rubric is provided, good / bad / needs improvement / uncertain MUST be written in relation to it:**
-
-- **good**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (how the agent met it).
-
-- **bad**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (how the agent failed it).
-
-- **improvement**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (what improvement is needed).
-
-- **uncertain**: \`category\` = section title. \`rubricExact\` = that section's description from the rubric (verbatim). \`description\` = your comment about this message (what is uncertain).
-
-Do not create good, bad, improvement, or uncertain markers for aspects that are not in the rubric—only for moments that map to a rubric section.
-
-**When a rubric is provided, every analysis output must be tied to it:**
-- **overallScore** and **summary**: Base on how well the agent met the rubric criteria overall.
-- **strengths**: Each strength must cite the exact rubric section/criterion, e.g. \`[Opening 1.1] Agent greeted professionally and stated name\` or \`[Empathy 2.3] Acknowledged customer frustration appropriately\`. Do not list strengths that do not map to a rubric criterion.
-- **improvements**: Each improvement must cite the exact rubric section/criterion, e.g. \`[Troubleshooting 4.2] Agent should review notes before asking customer to repeat steps\`. Do not list improvements outside the rubric.
-- **categoryScores** (opening, empathy, troubleshooting, resolution, closing): Score each 0–100 based on how well the agent met the rubric criteria that best map to that category. Use the rubric's section names and requirements to justify each score.`
+${rubricText}`
       : `
 
 **Markers (no rubric):** For each marker, set "category" to a specific area (e.g. greeting, empathy, resolution, tone, compliance). Set \`rubricExact\` to \`""\`. In "description", explain what happened and which area it relates to.`;
@@ -215,16 +249,15 @@ ${rubricBlock}
 Transcript (Agent = employee being evaluated; Customer = caller):
 ${transcript}
 
-Provide (all feedback is about the Agent only, not the Customer). When a rubric is provided, every point (1–7) must relate to the uploaded rubric:
-1. **overallScore** (0-100): When a rubric exists, base on how well the agent met the rubric criteria.
-2. **summary** (QA/performance feedback): When a rubric exists, reference which rubric criteria the agent met or missed.
-3. **conversationSummary** (neutral: what was discussed, outcome)—no need to cite rubric.
-4. **markers** (6-12 total): When a rubric exists: (a) \`category\` = the section **title** from the rubric, (b) \`rubricExact\` = that section's **description** from the rubric (verbatim), (c) \`description\` = your **comment** about this specific message only—how it relates to the rubric; unique to this moment. When no rubric: category (e.g. greeting, empathy), \`rubricExact\` = \`""\`, description = what happened.
-5. **strengths**: When a rubric exists, each strength MUST cite the rubric section/criterion, e.g. \`[Section 1.1] ...\`. Only include strengths that map to the rubric.
-6. **improvements**: When a rubric exists, each improvement MUST cite the rubric section/criterion, e.g. \`[Section 4.2] ...\`. Only include improvements that map to the rubric.
-7. **categoryScores**: { opening, empathy, troubleshooting, resolution, closing } 0-100 each. When a rubric exists, derive from how well the agent met the matching rubric criteria.
-8. **agent**: name if stated; "—" otherwise
-9. **customer**: name or identifier if stated; "—" otherwise`,
+Provide (all feedback is about the Agent only). When a rubric is provided, 1–7 must relate to it:
+1. **overallScore** (0-100)
+2. **summary** (QA/performance; which criteria met or missed)
+3. **conversationSummary** (neutral: what was discussed, outcome)
+4. **markers** (6-12): \`category\` = section title; \`rubricExact\` = that section's description copied exactly as in the rubric; \`description\` = your comment. No rubric: category e.g. greeting/empathy, \`rubricExact\` = \`""\`, description = what happened.
+5. **strengths**: cite exact section titles; only from explicit rubric sections.
+6. **improvements**: cite exact section titles; only from explicit rubric sections.
+7. **categoryScores**: { opening, empathy, troubleshooting, resolution, closing } 0-100
+8. **agent**: name if stated, else "—". 9. **customer**: name if stated, else "—"`,
     });
 
     const obj = result.object ?? (result as { output?: unknown }).output;

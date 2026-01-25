@@ -51,11 +51,11 @@ export function AppSidebar() {
             href="/"
             className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4 hover:bg-sidebar-accent transition-colors"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-              <Headphones className="h-3.5 w-3.5 text-primary-foreground" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white shrink-0 overflow-visible">
+              <img src="/qai-logo.png" alt="QAI" className="h-10 w-10 object-contain" />
             </div>
             <span className="text-base font-semibold text-sidebar-foreground">
-              CallQA
+              QAI
             </span>
           </Link>
 

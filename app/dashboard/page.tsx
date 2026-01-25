@@ -1,18 +1,13 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { Button } from "@/components/ui/button";
 import {
-  ClipboardList,
   TrendingUp,
   TrendingDown,
   CheckCircle2,
   AlertCircle,
-  FileText,
-  BarChart,
 } from "lucide-react";
-import Link from "next/link";
 import AnimatedList from "@/components/AnimatedList";
 import CountUp from "@/components/CountUp";
 
@@ -47,6 +42,12 @@ const mockBottomAgents = [
   { name: "James Wilson", initials: "JW", overall: 68, change: -2.1 },
   { name: "Lisa Anderson", initials: "LA", overall: 71, change: 1.2 },
   { name: "Robert Brown", initials: "RB", overall: 73, change: -0.8 },
+];
+
+const mockCategoriesNeedingImprovement = [
+  { category: "Problem Resolution", score: 75, target: 85 },
+  { category: "Call Closing", score: 78, target: 85 },
+  { category: "Upselling", score: 80, target: 85 },
 ];
 
 function TeamScoreToday() {
@@ -185,11 +186,11 @@ function TeamScoreToday() {
 
           {/* Right Side - Category Breakdown */}
           <div className="space-y-1.5">
-            <h3 className="text-sm font-semibold text-foreground mb-0.5">
+            <h2 className="text-xl font-semibold text-foreground mb-2">
               Category Performance
-            </h3>
+            </h2>
             <AnimatedList
-              showGradients
+              showGradients={false}
               enableArrowNavigation
               displayScrollbar
               className="w-full"
@@ -248,150 +249,12 @@ function TeamScoreToday() {
 }
 
 export default function DashboardPage() {
-  const [hasRubric, setHasRubric] = useState(false);
-  const rubricFileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    // Check if rubric file exists in localStorage
-    const rubricData = localStorage.getItem("qa-rubric-file");
-    setHasRubric(!!rubricData);
-
-    // Listen for storage changes (when rubric is saved/removed)
-    const handleStorageChange = () => {
-      const rubricData = localStorage.getItem("qa-rubric-file");
-      setHasRubric(!!rubricData);
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    // Also listen for custom event from rubric page
-    window.addEventListener("rubric-updated", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("rubric-updated", handleStorageChange);
-    };
-  }, []);
-
-  const triggerRubricUpload = () => {
-    rubricFileInputRef.current?.click();
-  };
-
-  const parseRubricCsvToCategories = (csvText: string): string[] => {
-    const lines = csvText
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    // Take first column per row (supports comma, tab, or semicolon delimited exports)
-    const firstCol = lines.map((line) => {
-      const cell = line.split(/,|\t|;/)[0] ?? "";
-      return cell.replace(/^["']|["']$/g, "").trim();
-    });
-
-    return firstCol
-      .map((v) => v.replace(/^\d+[\.\)]\s*/, "").trim())
-      .filter((v) => v.length > 0)
-      .filter(
-        (v) =>
-          v.toLowerCase() !== "category" && v.toLowerCase() !== "categories",
-      );
-  };
-
-  const parseRubricRowsToCategories = (rows: unknown[][]): string[] => {
-    return rows
-      .map((r) => {
-        const v = (r?.[0] ?? "") as unknown;
-        return String(v)
-          .replace(/^["']|["']$/g, "")
-          .trim();
-      })
-      .map((v) => v.replace(/^\d+[\.\)]\s*/, "").trim())
-      .filter((v) => v.length > 0)
-      .filter(
-        (v) =>
-          v.toLowerCase() !== "category" && v.toLowerCase() !== "categories",
-      );
-  };
-
-  const handleRubricFileSelect = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const name = file.name.toLowerCase();
-
-      const isCsv = name.endsWith(".csv") || file.type === "text/csv";
-      const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
-
-      let categories: string[] = [];
-
-      if (isCsv) {
-        const text = await file.text();
-        categories = parseRubricCsvToCategories(text);
-      } else if (isExcel) {
-        // Optional: supports real Excel files if `xlsx` is installed.
-        // Falls back to CSV-only flow if not available.
-        try {
-          const importer = new Function("m", "return import(m)") as (
-            m: string,
-          ) => Promise<any>;
-          const XLSX = await importer("xlsx");
-          const buf = await file.arrayBuffer();
-          const workbook = XLSX.read(buf, { type: "array" });
-          const sheetName = workbook.SheetNames?.[0];
-          const sheet = sheetName ? workbook.Sheets?.[sheetName] : null;
-          const rows = sheet
-            ? (XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][])
-            : [];
-          categories = parseRubricRowsToCategories(rows);
-        } catch {
-          alert(
-            "To upload .xlsx files, install the `xlsx` package or export the file as CSV (.csv).",
-          );
-          return;
-        }
-      } else {
-        alert("Please upload an Excel file (.xlsx) or CSV export (.csv).");
-        return;
-      }
-
-      if (categories.length === 0) {
-        alert(
-          "No categories found. Put category names in the first column and try again.",
-        );
-        return;
-      }
-
-      localStorage.setItem(
-        "qa-rubric-file",
-        JSON.stringify({
-          categories,
-          fileName: file.name,
-          uploadedAt: new Date().toISOString(),
-        }),
-      );
-      window.dispatchEvent(new Event("rubric-updated"));
-      setHasRubric(true);
-    } finally {
-      // allow re-uploading the same file
-      e.target.value = "";
-    }
-  };
   return (
     <div className="min-h-screen bg-background relative">
       <AppSidebar />
 
       {/* Main Content */}
       <main className="pl-56 relative z-10">
-        <input
-          ref={rubricFileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          onChange={handleRubricFileSelect}
-          className="hidden"
-        />
         {/* Header */}
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur">
           <div>
@@ -402,41 +265,6 @@ export default function DashboardPage() {
         {/* Content */}
         <div className="p-6">
           <div className="space-y-4">
-            {/* Quick Actions */}
-            <div className="grid gap-3 md:grid-cols-3">
-              <QuickActionCard
-                title="Pending Reviews"
-                count={8}
-                description="Calls awaiting QA review"
-                href="/reviews?status=ready"
-                actionLabel="Start Reviewing"
-                variant="info"
-                icon={FileText}
-              />
-              <QuickActionCard
-                title="Team Analytics"
-                count={42}
-                description="View team performance metrics"
-                href="/analytics"
-                actionLabel="View Analytics"
-                variant="info"
-                icon={BarChart}
-              />
-              <QuickActionCard
-                title="QA Rubric"
-                count={hasRubric ? undefined : undefined}
-                description={
-                  hasRubric
-                    ? "Update evaluation criteria (upload CSV)"
-                    : "Add evaluation criteria (upload CSV)"
-                }
-                actionLabel={hasRubric ? "Update Rubric" : "Add Rubric"}
-                variant="info"
-                icon={ClipboardList}
-                onAction={triggerRubricUpload}
-              />
-            </div>
-
             {/* Top 3 & Bottom 3 Agents */}
             <div className="grid gap-4 md:grid-cols-2">
               {/* Top 3 Agents */}
@@ -531,83 +359,53 @@ export default function DashboardPage() {
 
             {/* Team Score Today */}
             <TeamScoreToday />
+
+            {/* Categories Needing Improvement */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <AlertCircle className="h-5 w-5 text-warning" />
+                <h2 className="text-xl font-semibold text-foreground">
+                  Categories Needing Improvement
+                </h2>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                {mockCategoriesNeedingImprovement.map((item) => {
+                  const diffFromTarget = item.target - item.score;
+                  return (
+                    <div
+                      key={item.category}
+                      className="rounded-xl border border-warning/40 bg-card p-4"
+                    >
+                      <p className="text-sm font-medium text-foreground mb-1">
+                        {item.category}
+                      </p>
+                      <p className="text-2xl font-bold text-warning mb-0.5">
+                        {item.score}%
+                      </p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Target: {item.target}%
+                      </p>
+                      <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-warning/80 text-warning-foreground mb-3">
+                        -{diffFromTarget}% from target
+                      </span>
+                      <div className="w-full h-2 rounded-full bg-muted flex overflow-hidden">
+                        <div
+                          className="h-full bg-warning shrink-0"
+                          style={{ width: `${item.score}%` }}
+                        />
+                        <div
+                          className="h-full bg-success shrink-0"
+                          style={{ width: `${diffFromTarget}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </main>
-    </div>
-  );
-}
-
-function QuickActionCard({
-  title,
-  count,
-  description,
-  href,
-  actionLabel,
-  variant = "default",
-  icon: Icon,
-  onAction,
-}: {
-  title: string;
-  count?: number;
-  description: string;
-  href?: string;
-  actionLabel: string;
-  variant?: "default" | "warning" | "success" | "info";
-  icon?: React.ComponentType<{ className?: string }>;
-  onAction?: () => void;
-}) {
-  const variantStyles = {
-    default: "border-border bg-card",
-    warning: "border-warning/30 bg-warning/5",
-    success: "border-success/30 bg-success/5",
-    info: "border-blue-500/30 bg-blue-500/5",
-  };
-
-  const countStyles = {
-    default: "text-foreground",
-    warning: "text-warning",
-    success: "text-success",
-    info: "text-blue-500",
-  };
-
-  return (
-    <div className={`rounded-xl border p-4 ${variantStyles[variant]}`}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1.5">
-            {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
-            <p className="text-xs font-medium text-muted-foreground">{title}</p>
-          </div>
-          {count !== undefined && (
-            <p className={`mt-0.5 text-2xl font-bold ${countStyles[variant]}`}>
-              {count}
-            </p>
-          )}
-          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      {href ? (
-        <Link href={href}>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3 w-full bg-transparent text-xs h-7"
-          >
-            {actionLabel}
-          </Button>
-        </Link>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-3 w-full bg-transparent text-xs h-7"
-          onClick={onAction}
-        >
-          {actionLabel}
-        </Button>
-      )}
     </div>
   );
 }

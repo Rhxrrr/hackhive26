@@ -18,6 +18,7 @@ import {
   ChevronDown,
   HelpCircle,
   BarChart2,
+  FileAudio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -311,21 +312,48 @@ export default function QADashboard() {
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [mediaObjectUrl, setMediaObjectUrl] = useState<string | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const processFile = (selectedFile: File) => {
+    if (selectedFile.size > 100 * 1024 * 1024) return; // max 100MB
+    if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+    setFile(selectedFile);
+    setIsLoading(true);
+    setHighlightedTimePosition(null);
+    setHighlightedMomentType(null);
+    setHighlightedLine(null);
+    loadTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false);
+      loadTimeoutRef.current = null;
+    }, 2500);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-      setFile(selectedFile);
-      setIsLoading(true);
-      setHighlightedTimePosition(null);
-      setHighlightedMomentType(null);
-      setHighlightedLine(null);
-      loadTimeoutRef.current = setTimeout(() => {
-        setIsLoading(false);
-        loadTimeoutRef.current = null;
-      }, 2500);
-    }
+    const f = e.target.files?.[0];
+    if (f) processFile(f);
     e.target.value = "";
+  };
+
+  const tryDemoUpload = () => fileInputRef.current?.click();
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer?.items?.length) setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f && (f.type.startsWith("audio/") || /\.(mp3|m4a)$/i.test(f.name))) processFile(f);
   };
 
   useEffect(() => {
@@ -519,34 +547,119 @@ export default function QADashboard() {
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background p-6">
       <div className="max-w-7xl mx-auto flex flex-col gap-6 flex-1 min-h-0 w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
-              Voice Call QA Review
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              AI-powered analysis of customer service calls
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard" className="gap-2">
-                <BarChart2 className="w-4 h-4" />
-                Agent Performance
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" onClick={downloadTranscript}>
-              <Download className="w-4 h-4 mr-2" />
-              Download Transcript
-            </Button>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Full Report
+        <input
+          ref={fileInputRef}
+          id="upload-call-input"
+          type="file"
+          accept=".mp3,audio/mpeg,.m4a,audio/mp4,audio/x-m4a"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        {!file && (
+          <>
+            {/* Upload Call header */}
+            <div className="flex items-center justify-between shrink-0">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">
+                  Upload Call
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  Upload MP3 or M4A recordings for AI analysis
+                </p>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard" className="gap-2">
+                  <BarChart2 className="w-4 h-4" />
+                  Agent Performance
+                </Link>
+              </Button>
+            </div>
+
+            {/* Upload Call zone */}
+            <div className="flex-1 flex items-center justify-center min-h-0">
+              <div
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  "w-full max-w-2xl border-2 border-dashed rounded-xl p-10 md:p-12 transition-colors",
+                  isDragging
+                    ? "border-[#60a5fa] bg-[#60a5fa]/10"
+                    : "border-border hover:border-muted-foreground/50"
+                )}
+              >
+                <div className="flex flex-col items-center justify-center gap-4 text-center">
+                  <div className="w-14 h-14 rounded-full bg-[#60a5fa]/20 flex items-center justify-center">
+                    <Upload className="w-7 h-7 text-[#60a5fa]" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      Upload Call Recording
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1.5 max-w-md mx-auto">
+                      Drag and drop your MP3 files here, or click to browse. AI
+                      will automatically transcribe, score, and summarize the
+                      call.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap justify-center">
+                    <label
+                      htmlFor="upload-call-input"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#60a5fa] text-white text-sm font-medium hover:bg-[#60a5fa]/90 cursor-pointer transition-colors"
+                    >
+                      <FileAudio className="w-4 h-4" />
+                      Select Files
+                    </label>
+                    <span className="text-sm text-muted-foreground">or</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={tryDemoUpload}
+                    >
+                      Try Demo Upload
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Supported formats: MP3, M4A (max 100MB per file)
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {file && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between shrink-0">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">
+                  Voice Call QA Review
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  AI-powered analysis of customer service calls
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/dashboard" className="gap-2">
+                    <BarChart2 className="w-4 h-4" />
+                    Agent Performance
+                  </Link>
                 </Button>
-              </DialogTrigger>
+                <Button variant="outline" size="sm" onClick={downloadTranscript}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Transcript
+                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <FileText className="w-4 h-4 mr-2" />
+                      Full Report
+                    </Button>
+                  </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Full QA Report</DialogTitle>
@@ -646,17 +759,14 @@ export default function QADashboard() {
                 </div>
               </DialogContent>
             </Dialog>
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                accept="audio/*,video/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+            <label
+              htmlFor="upload-call-input"
+              className="cursor-pointer"
+            >
               <div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg border border-border transition-colors min-w-0">
                 <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-sm text-foreground min-w-0 max-w-44 truncate">
-                  {file ? file.name : "Upload Call"}
+                  {file.name}
                 </span>
               </div>
             </label>
@@ -1186,6 +1296,8 @@ export default function QADashboard() {
             )}
           </div>
         </div>
+          </>
+        )}
         {file &&
           mediaObjectUrl &&
           (file.type.startsWith("video/") ? (

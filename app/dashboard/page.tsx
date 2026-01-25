@@ -122,17 +122,15 @@ function TeamScoreToday() {
 
   return (
     <div>
-      <div className="pb-1">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">
-            Team Score This Month
-          </h2>
-        </div>
-      </div>
-      <div className="pt-1">
-        <div className="grid grid-cols-[1fr_2fr] gap-4 items-start">
-          {/* Left Side - Summary Stats */}
-          <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_2fr] gap-4 items-start">
+        <h2 className="text-xl font-semibold text-foreground">
+          Team Score This Month
+        </h2>
+        <h2 className="text-xl font-semibold text-foreground">
+          Category Performance
+        </h2>
+        {/* Left Side - Summary Stats */}
+        <div className="space-y-2">
             <div className="rounded-lg border border-border bg-card p-3 mb-1.5">
               <p className="text-sm text-muted-foreground mb-1">
                 Overall Score
@@ -184,12 +182,9 @@ function TeamScoreToday() {
             </div>
           </div>
 
-          {/* Right Side - Category Breakdown */}
-          <div className="space-y-1.5">
-            <h2 className="text-xl font-semibold text-foreground mb-2">
-              Category Performance
-            </h2>
-            <AnimatedList
+        {/* Right Side - Category Breakdown */}
+        <div className="space-y-1.5">
+          <AnimatedList
               showGradients={false}
               enableArrowNavigation
               displayScrollbar
@@ -241,7 +236,6 @@ function TeamScoreToday() {
                 );
               })}
             </AnimatedList>
-          </div>
         </div>
       </div>
     </div>
@@ -394,7 +388,7 @@ export default function DashboardPage() {
                           style={{ width: `${item.score}%` }}
                         />
                         <div
-                          className="h-full bg-success shrink-0"
+                          className="h-full bg-destructive shrink-0"
                           style={{ width: `${diffFromTarget}%` }}
                         />
                       </div>

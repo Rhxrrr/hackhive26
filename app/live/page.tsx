@@ -931,13 +931,13 @@ export default function LiveCallPage() {
       {/* Header: solid bg (no grid); h-16 so grid’s top aligns with border-b */}
       <header className="relative z-10 h-16 flex items-center border-b border-border bg-background px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center w-full gap-x-8">
-          {/* Left: QA Review / Live Call Assistant */}
+          {/* Left: My Analytics / Live Call Assistant */}
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href="/"
+              href="/analytics?view=agent"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              QA Review
+              My Analytics
             </Link>
             <span className="text-muted-foreground">/</span>
             <h1 className="text-lg font-semibold">Live Call Assistant</h1>

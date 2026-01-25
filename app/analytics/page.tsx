@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   Select,
   SelectContent,
@@ -126,6 +127,8 @@ function getQABoxClass(score: number): string {
 }
 
 export default function AgentPerformancePage() {
+  const searchParams = useSearchParams()
+  const isAgentView = searchParams.get("view") === "agent"
   const [agent, setAgent] = useState("marcus-chen")
   const currentAgent = agents.find((a) => a.id === agent) ?? agents[0]
   const rubric = getRubricByAgent(agent)
@@ -133,13 +136,14 @@ export default function AgentPerformancePage() {
   const radarData = rubricToRadarData(rubric)
   const scoreProgressionData = rubricToScoreProgression(rubric)
   const kpi = kpiByAgent[agent] ?? kpiByAgent["marcus-chen"]
-  const pctChange = kpi.previousScore ? ((qaScore - kpi.previousScore) / kpi.previousScore) * 100 : 0
+  const previousScore = kpi.previousScore
+  const pctChange = previousScore != null ? qaScore - previousScore : 0
   const recentCalls = recentCallsByAgent[agent] ?? recentCallsByAgent["marcus-chen"]
 
   return (
     <div className="min-h-screen bg-background relative">
-      <AppSidebar />
-      <main className="pl-56 relative z-10">
+      {!isAgentView && <AppSidebar />}
+      <main className={isAgentView ? "relative z-10" : "pl-56 relative z-10"}>
         <div className="mx-auto max-w-6xl w-full px-4 py-6">
         {/* Header */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -147,18 +151,20 @@ export default function AgentPerformancePage() {
             <h1 className="text-2xl font-bold text-foreground">Agent Performance</h1>
             <p className="text-sm text-muted-foreground">Track QA scores and coaching insights</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Select value={agent} onValueChange={setAgent}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select agent" />
-              </SelectTrigger>
-              <SelectContent>
-                {agents.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!isAgentView && (
+            <div className="flex items-center gap-2">
+              <Select value={agent} onValueChange={setAgent}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  {agents.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* KPI */}
@@ -175,7 +181,7 @@ export default function AgentPerformancePage() {
                 <span className={`text-sm font-medium ${pctChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                   {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(1)}%
                 </span>
-                <span className="text-sm text-muted-foreground">from {kpi.previousScore}</span>
+                <span className="text-sm text-muted-foreground">from {previousScore}</span>
               </div>
             </div>
           </div>

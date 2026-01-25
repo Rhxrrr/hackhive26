@@ -39,7 +39,7 @@ const analysisSchema = z.object({
         rubricExact: z
           .string()
           .describe(
-            "When rubric: copy the section's description exactly as it appears—no paraphrasing. When no rubric: \"\".",
+            'When rubric: copy the section\'s description exactly as it appears—no paraphrasing. When no rubric: "".',
           ),
         description: z
           .string()
@@ -73,14 +73,10 @@ const analysisSchema = z.object({
     .describe(
       "Scores 0-100 per category. When a rubric is provided, derive each from how well the agent met the rubric criteria that map to that category.",
     ),
-  agent: z
-    .string()
-    .describe("Agent name if stated; use '—' when not stated"),
+  agent: z.string().describe("Agent name if stated; use '—' when not stated"),
   customer: z
     .string()
-    .describe(
-      "Customer name or identifier if stated; use '—' when not stated",
-    ),
+    .describe("Customer name or identifier if stated; use '—' when not stated"),
 });
 
 export async function POST(req: Request) {
@@ -88,7 +84,7 @@ export async function POST(req: Request) {
   if (!apiKey) {
     return Response.json(
       { error: "OPENAI_API_KEY is not set. Add it to .env.local." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -100,10 +96,7 @@ export async function POST(req: Request) {
 
     const rubricFile = formData.get("rubricFile");
     const rubricFileName = (formData.get("rubricFileName") as string) || "";
-    if (
-      rubricFile &&
-      typeof (rubricFile as Blob).arrayBuffer === "function"
-    ) {
+    if (rubricFile && typeof (rubricFile as Blob).arrayBuffer === "function") {
       try {
         const buf = Buffer.from(await (rubricFile as Blob).arrayBuffer());
         const ext = (rubricFileName.split(".").pop() || "").toLowerCase();
@@ -131,8 +124,9 @@ export async function POST(req: Request) {
               const looksLikeHeader = firstStr.some(
                 (s) =>
                   /section|category|topic|description|criteria|criterion|requirement|#|number/i.test(
-                    s
-                  ) || (s.length <= 2 && /^\d+$/.test(s))
+                    s,
+                  ) ||
+                  (s.length <= 2 && /^\d+$/.test(s)),
               );
               let titleCol = 0;
               let descCol = 1;
@@ -141,7 +135,7 @@ export async function POST(req: Request) {
                   const t = String(first[i] ?? "").toLowerCase();
                   if (
                     /description|criteria|criterion|requirement|details|expectation|standard|notes/.test(
-                      t
+                      t,
                     )
                   )
                     descCol = i;
@@ -156,7 +150,7 @@ export async function POST(req: Request) {
                 const desc = String(row[descCol] ?? "").trim();
                 if (!desc) continue;
                 blocks.push(
-                  `---\nSection: ${title || `Item ${r + 1}`}\nDescription: ${desc}\n`
+                  `---\nSection: ${title || `Item ${r + 1}`}\nDescription: ${desc}\n`,
                 );
               }
               if (blocks.length > 0) {
@@ -180,7 +174,7 @@ export async function POST(req: Request) {
             parts.push(
               content.items
                 .map((x: { str?: string }) => (x as { str?: string }).str ?? "")
-                .join(" ")
+                .join(" "),
             );
           }
           rubricText = parts.join("\n\n");
@@ -195,7 +189,7 @@ export async function POST(req: Request) {
     if (!transcript) {
       return Response.json(
         { error: "Transcript is required. Transcribe the audio first." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -214,9 +208,9 @@ export async function POST(req: Request) {
 **Rubric${rubricSource} — copy exactly as written**
 
 Copy the **description** exactly as it appears in the rubric—same words, punctuation, and order; no paraphrasing. \`category\` = section title. \`rubricExact\` = that section's description, exactly as written. ${
-        hasStructuredRubric
-          ? "If the rubric uses 'Description: X', use the exact text after 'Description: '."
-          : "Use the longer criterion text, not the section title."
+          hasStructuredRubric
+            ? "If the rubric uses 'Description: X', use the exact text after 'Description: '."
+            : "Use the longer criterion text, not the section title."
         } \`description\` = your comment on the agent's words/actions only (Agent: lines); never attribute customer lines to the agent. Never leave \`rubricExact\` empty. Markers only for Agent: lines and explicit rubric criteria; strengths/improvements cite exact section titles; categoryScores from matching rubric criteria.
 
 ---

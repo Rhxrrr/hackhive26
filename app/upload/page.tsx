@@ -34,7 +34,7 @@ export default function UploadCallPage() {
       setUploadedFile(file);
       router.push("/qa");
     },
-    [router]
+    [router],
   );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +51,7 @@ export default function UploadCallPage() {
       const f = e.dataTransfer.files?.[0];
       processFile(f);
     },
-    [processFile]
+    [processFile],
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -77,7 +77,9 @@ export default function UploadCallPage() {
           {/* Header - aligned like Agent Performance */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6 shrink-0">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Upload Call</h1>
+              <h1 className="text-2xl font-bold text-foreground">
+                Upload Call
+              </h1>
               <p className="text-sm text-muted-foreground">
                 Upload call recordings for AI analysis
               </p>
@@ -104,7 +106,7 @@ export default function UploadCallPage() {
                   "border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer",
                   isDragging
                     ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground hover:bg-muted/20"
+                    : "border-border hover:border-muted-foreground hover:bg-muted/20",
                 )}
               >
                 <div className="flex flex-col items-center gap-4">
@@ -117,8 +119,8 @@ export default function UploadCallPage() {
                     </p>
                     <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
                       Drag and drop your MP3 or M4A file here, or click to
-                      browse. AI will automatically transcribe, score, and
-                      summarize the call.
+                      browse. You’ll be taken to the QA page to transcribe, then
+                      click Analyze to score and summarize the call.
                     </p>
                   </div>
 
@@ -146,7 +148,9 @@ export default function UploadCallPage() {
 
           {error && (
             <div className="absolute bottom-6 left-0 right-0 text-center px-4">
-              <p className="text-sm text-destructive" role="alert">{error}</p>
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
             </div>
           )}
         </div>

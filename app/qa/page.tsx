@@ -21,6 +21,7 @@ import {
   HelpCircle,
   MessageSquare,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { getAndClearUploadedFile } from "@/lib/uploaded-file-store";
+import { persistRubricFromFile } from "@/lib/qa-rubrics";
 
 const INITIAL_TRANSCRIPT = [
   {
@@ -197,6 +199,9 @@ export default function QADashboard() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<
+    "transcribe" | "analyze" | null
+  >(null);
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -258,7 +263,7 @@ export default function QADashboard() {
 
   const findLineId = (
     tx: { id: number; time: string }[],
-    ts: number
+    ts: number,
   ): number => {
     let best = 1;
     for (const line of tx) {
@@ -269,7 +274,7 @@ export default function QADashboard() {
 
   const buildReport = (
     a: Record<string, unknown>,
-    durationSec: number
+    durationSec: number,
   ): typeof INITIAL_REPORT => ({
     callId: `CALL-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
     agent: (typeof a.agent === "string" ? a.agent : null) ?? "—",
@@ -298,8 +303,12 @@ export default function QADashboard() {
         return {
           opening: typeof o.opening === "number" ? o.opening : def.opening,
           empathy: typeof o.empathy === "number" ? o.empathy : def.empathy,
-          troubleshooting: typeof o.troubleshooting === "number" ? o.troubleshooting : def.troubleshooting,
-          resolution: typeof o.resolution === "number" ? o.resolution : def.resolution,
+          troubleshooting:
+            typeof o.troubleshooting === "number"
+              ? o.troubleshooting
+              : def.troubleshooting,
+          resolution:
+            typeof o.resolution === "number" ? o.resolution : def.resolution,
           closing: typeof o.closing === "number" ? o.closing : def.closing,
         };
       }
@@ -321,7 +330,7 @@ export default function QADashboard() {
       description?: string;
       rubricExact?: string;
     }>,
-    tx: { id: number; time: string; speaker?: string }[]
+    tx: { id: number; time: string; speaker?: string }[],
   ) => {
     const good: Moment[] = [];
     const bad: Moment[] = [];
@@ -335,7 +344,9 @@ export default function QADashboard() {
       if (line?.speaker === "customer") {
         const idx = tx.findIndex((l) => l.id === lineId);
         const nextAgent = tx.slice(idx + 1).find((l) => l.speaker === "agent");
-        const prevAgent = [...tx.slice(0, idx)].reverse().find((l) => l.speaker === "agent");
+        const prevAgent = [...tx.slice(0, idx)]
+          .reverse()
+          .find((l) => l.speaker === "agent");
         const agentLine = nextAgent ?? prevAgent;
         if (!agentLine) continue; // no agent lines in transcript (edge case)
         lineId = agentLine.id;
@@ -364,7 +375,9 @@ export default function QADashboard() {
 
   const [momentsGood, setMomentsGood] = useState<Moment[]>(() => []);
   const [momentsBad, setMomentsBad] = useState<Moment[]>(() => []);
-  const [momentsImprovement, setMomentsImprovement] = useState<Moment[]>(() => []);
+  const [momentsImprovement, setMomentsImprovement] = useState<Moment[]>(
+    () => [],
+  );
   const [momentsUncertain, setMomentsUncertain] = useState<Moment[]>(() => []);
 
   const moveMoment = (
@@ -476,14 +489,35 @@ export default function QADashboard() {
     setEditingMessageDraft("");
   };
 
-  const processFile = async (selectedFile: File) => {
-    if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+  const loadFileOnly = (selectedFile: File) => {
     setFile(selectedFile);
-    setIsLoading(true);
+    setTranscript([]);
+    setReport(INITIAL_REPORT);
+    setCallDuration(180);
+    setMomentsGood([]);
+    setMomentsBad([]);
+    setMomentsImprovement([]);
+    setMomentsUncertain([]);
     setAnalysisError(null);
     setHighlightedTimePosition(null);
     setHighlightedMomentType(null);
     setHighlightedLine(null);
+  };
+
+  const transcribeOnly = async (selectedFile: File) => {
+    if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+    setFile(selectedFile);
+    setIsLoading(true);
+    setLoadingPhase("transcribe");
+    setAnalysisError(null);
+    setHighlightedTimePosition(null);
+    setHighlightedMomentType(null);
+    setHighlightedLine(null);
+    setReport(INITIAL_REPORT);
+    setMomentsGood([]);
+    setMomentsBad([]);
+    setMomentsImprovement([]);
+    setMomentsUncertain([]);
     try {
       const trForm = new FormData();
       trForm.append("file", selectedFile);
@@ -492,7 +526,12 @@ export default function QADashboard() {
         body: trForm,
       });
       const trData = (await trRes.json().catch(() => ({}))) as {
-        transcript?: { id: number; speaker: string; text: string; time: string }[];
+        transcript?: {
+          id: number;
+          speaker: string;
+          text: string;
+          time: string;
+        }[];
         rawText?: string;
         duration?: number;
         error?: string;
@@ -507,125 +546,162 @@ export default function QADashboard() {
       const duration = trData.duration || 180;
       setCallDuration(duration);
       setTranscript(tx.length > 0 ? tx : INITIAL_TRANSCRIPT);
-
-      const transcriptForAnalyze =
-        tx.length > 0
-          ? tx
-              .map(
-                (l) =>
-                  `${l.speaker === "agent" ? "Agent" : "Customer"}: ${l.text}`
-              )
-              .join("\n")
-          : (trData.rawText ?? tx.map((l) => l.text).join(" ")) || "";
-
-      const anForm = new FormData();
-      anForm.append("transcript", transcriptForAnalyze);
-      anForm.append("duration", String(duration));
-      if (rubricFile) {
-        anForm.append("rubricFile", rubricFile);
-        anForm.append("rubricFileName", rubricFile.name);
-      }
-      const anRes = await fetch("/api/analyze", { method: "POST", body: anForm });
-      const anData = (await anRes.json().catch(() => ({}))) as Record<string, unknown> & {
-        error?: string;
-        markers?: unknown[];
-      };
-      if (!anRes.ok) {
-        const err = anData.error || "Analysis failed";
-        setAnalysisError(err);
-        toast.error(err);
-        return;
-      }
-      setReport(buildReport(anData, duration));
-      const markers = (Array.isArray(anData.markers)
-        ? anData.markers
-        : []) as { timestamp?: number; type?: string; category?: string; description?: string; rubricExact?: string }[];
-      const { good, bad, improvement, uncertain } = mapMarkersToMoments(
-        markers,
-        tx.length > 0 ? tx : INITIAL_TRANSCRIPT
-      );
-      setMomentsGood(good);
-      setMomentsBad(bad);
-      setMomentsImprovement(improvement);
-      setMomentsUncertain(uncertain);
+      toast.success("Transcription ready. Click Analyze to generate insights.");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Transcription or analysis failed";
+      const msg = err instanceof Error ? err.message : "Transcription failed";
       setAnalysisError(msg);
       toast.error(msg);
     } finally {
       setIsLoading(false);
+      setLoadingPhase(null);
       loadTimeoutRef.current = null;
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    e.target.value = "";
-    if (!selectedFile) return;
-    await processFile(selectedFile);
+  const runAnalysisWithTranscript = async (
+    transcriptLines: { id: number; speaker: string; text: string; time: string }[],
+    duration: number,
+  ) => {
+    const transcriptForAnalyze =
+      transcriptLines
+        .map(
+          (l) => `${l.speaker === "agent" ? "Agent" : "Customer"}: ${l.text}`,
+        )
+        .join("\n") || "";
+    const anForm = new FormData();
+    anForm.append("transcript", transcriptForAnalyze);
+    anForm.append("duration", String(duration));
+    if (rubricFile) {
+      anForm.append("rubricFile", rubricFile);
+      anForm.append("rubricFileName", rubricFile.name);
+    }
+    const anRes = await fetch("/api/analyze", {
+      method: "POST",
+      body: anForm,
+    });
+    const anData = (await anRes.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    > & {
+      error?: string;
+      markers?: unknown[];
+    };
+    if (!anRes.ok) {
+      const err = anData.error || "Analysis failed";
+      setAnalysisError(err);
+      toast.error(err);
+      return;
+    }
+    setReport(buildReport(anData, duration));
+    const markers = (Array.isArray(anData.markers) ? anData.markers : []) as {
+      timestamp?: number;
+      type?: string;
+      category?: string;
+      description?: string;
+      rubricExact?: string;
+    }[];
+    const { good, bad, improvement, uncertain } = mapMarkersToMoments(
+      markers,
+      transcriptLines,
+    );
+    setMomentsGood(good);
+    setMomentsBad(bad);
+    setMomentsImprovement(improvement);
+    setMomentsUncertain(uncertain);
+    toast.success("Analysis complete");
   };
 
-  // Consume file passed from /upload page after redirect
-  useEffect(() => {
-    const fromUpload = getAndClearUploadedFile();
-    if (fromUpload) processFile(fromUpload);
-  }, []);
-
-  const handleRubricFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    setRubricFile(f);
-    // If a call is already loaded, re-run analysis with the new rubric
+  const runAnalysis = async () => {
     if (!file || isLoading) return;
+    // When no transcript: only allow if both rubric and video (we'll auto-transcribe first)
+    if (transcript.length === 0) {
+      if (!rubricFile) return;
+      setIsLoading(true);
+      setLoadingPhase("transcribe");
+      setAnalysisError(null);
+      try {
+        const trForm = new FormData();
+        trForm.append("file", file);
+        const trRes = await fetch("/api/transcribe", {
+          method: "POST",
+          body: trForm,
+        });
+        const trData = (await trRes.json().catch(() => ({}))) as {
+          transcript?: {
+            id: number;
+            speaker: string;
+            text: string;
+            time: string;
+          }[];
+          duration?: number;
+          error?: string;
+        };
+        if (!trRes.ok) {
+          const err = trData.error || "Transcription failed";
+          setAnalysisError(err);
+          toast.error(err);
+          return;
+        }
+        const tx = Array.isArray(trData.transcript) ? trData.transcript : [];
+        const dur = trData.duration || 180;
+        setCallDuration(dur);
+        setTranscript(tx.length > 0 ? tx : INITIAL_TRANSCRIPT);
+        if (tx.length === 0) {
+          toast.error("Transcription produced no content.");
+          return;
+        }
+        setLoadingPhase("analyze");
+        await runAnalysisWithTranscript(tx, dur);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Transcription failed";
+        setAnalysisError(msg);
+        toast.error(msg);
+      } finally {
+        setIsLoading(false);
+        setLoadingPhase(null);
+      }
+      return;
+    }
     setIsLoading(true);
+    setLoadingPhase("analyze");
     setAnalysisError(null);
     try {
-      const transcriptForAnalyze =
-        transcript.length > 0
-          ? transcript
-              .map(
-                (l) =>
-                  `${l.speaker === "agent" ? "Agent" : "Customer"}: ${l.text}`
-              )
-              .join("\n")
-          : transcript.map((l) => l.text).join(" ").trim() || "";
-      const anForm = new FormData();
-      anForm.append("transcript", transcriptForAnalyze);
-      anForm.append("duration", String(callDuration));
-      anForm.append("rubricFile", f);
-      anForm.append("rubricFileName", f.name);
-      const anRes = await fetch("/api/analyze", { method: "POST", body: anForm });
-      const anData = (await anRes.json().catch(() => ({}))) as Record<string, unknown> & {
-        error?: string;
-        markers?: unknown[];
-      };
-      if (!anRes.ok) {
-        const err = anData.error || "Analysis with rubric failed";
-        setAnalysisError(err);
-        toast.error(err);
-        return;
-      }
-      setReport(buildReport(anData, callDuration));
-      const markers = (Array.isArray(anData.markers)
-        ? anData.markers
-        : []) as { timestamp?: number; type?: string; category?: string; description?: string; rubricExact?: string }[];
-      const { good, bad, improvement, uncertain } = mapMarkersToMoments(
-        markers,
-        transcript
-      );
-      setMomentsGood(good);
-      setMomentsBad(bad);
-      setMomentsImprovement(improvement);
-      setMomentsUncertain(uncertain);
-      toast.success("Analysis updated with rubric");
+      await runAnalysisWithTranscript(transcript, callDuration);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Analysis with rubric failed";
+      const msg = err instanceof Error ? err.message : "Analysis failed";
       setAnalysisError(msg);
       toast.error(msg);
     } finally {
       setIsLoading(false);
+      setLoadingPhase(null);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    e.target.value = "";
+    if (!selectedFile) return;
+    loadFileOnly(selectedFile);
+    toast.success("Call loaded. Click Transcribe to generate a transcript.");
+  };
+
+  // Consume file passed from /upload page after redirect (load only; no auto-transcribe)
+  useEffect(() => {
+    const fromUpload = getAndClearUploadedFile();
+    if (fromUpload) loadFileOnly(fromUpload);
+  }, []);
+
+  const handleRubricFileSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setRubricFile(f);
+    // Always persist to library so the rubric is saved for Dashboard and future sessions
+    const persisted = await persistRubricFromFile(f);
+    if ("error" in persisted) toast.error(persisted.error);
+    else toast.success("Rubric added. Run analysis to use it.");
   };
 
   useEffect(() => {
@@ -944,11 +1020,7 @@ export default function QADashboard() {
     doc.setFontSize(9);
     doc.text("Good = 1, Bad = 0, Needs improvement = 0.5", MARGIN, y);
     y += LINE;
-    doc.text(
-      `Good (${momentsGood.length}) × 1 = ${goodPts}`,
-      MARGIN,
-      y,
-    );
+    doc.text(`Good (${momentsGood.length}) × 1 = ${goodPts}`, MARGIN, y);
     y += LINE;
     doc.text(`Bad (${momentsBad.length}) × 0 = 0`, MARGIN, y);
     y += LINE;
@@ -995,7 +1067,7 @@ export default function QADashboard() {
       report.recommendations.length > 0
         ? report.recommendations
         : [...momentsBad, ...momentsImprovement].map(
-            (m) => `[${m.time}] (${m.rubric || "—"}): ${m.message}`
+            (m) => `[${m.time}] (${m.rubric || "—"}): ${m.message}`,
           );
     recs.forEach((r) => addBullet("• " + r));
 
@@ -1097,13 +1169,18 @@ export default function QADashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={downloadReport}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadReport}
+              className="h-8 shrink-0"
+            >
               <Download className="w-4 h-4 mr-2" />
               Download
             </Button>
             <Dialog>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" className="h-8 shrink-0">
                   <FileText className="w-4 h-4 mr-2" />
                   Full Report
                 </Button>
@@ -1198,7 +1275,9 @@ export default function QADashboard() {
                         <span>× 0 = 0</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Needs improvement ({momentsImprovement.length})</span>
+                        <span>
+                          Needs improvement ({momentsImprovement.length})
+                        </span>
                         <span>× 0.5 = {momentsImprovement.length * 0.5}</span>
                       </div>
                       <div className="flex justify-between font-medium pt-2 border-t border-border">
@@ -1275,7 +1354,9 @@ export default function QADashboard() {
                       )}
                       {momentsImprovement.length > 0 && (
                         <div>
-                          <h4 className="font-medium mb-2">Needs Improvement</h4>
+                          <h4 className="font-medium mb-2">
+                            Needs Improvement
+                          </h4>
                           <ul className="space-y-2">
                             {momentsImprovement.map((m, i) => (
                               <li key={i} className="text-sm">
@@ -1313,16 +1394,12 @@ export default function QADashboard() {
                   <div>
                     <h4 className="font-medium mb-2">Recommendations</h4>
                     <ul className="space-y-2">
-                      {(
-                        report.recommendations.length > 0
-                          ? report.recommendations
-                          : [
-                              ...momentsBad,
-                              ...momentsImprovement,
-                            ].map(
-                              (m) =>
-                                `[${m.time}] (${m.rubric || "—"}): ${m.message}`
-                            )
+                      {(report.recommendations.length > 0
+                        ? report.recommendations
+                        : [...momentsBad, ...momentsImprovement].map(
+                            (m) =>
+                              `[${m.time}] (${m.rubric || "—"}): ${m.message}`,
+                          )
                       ).map((rec, i) => (
                         <li
                           key={i}
@@ -1349,26 +1426,56 @@ export default function QADashboard() {
               size="sm"
               onClick={() => rubricFileInputRef.current?.click()}
               title={rubricFile?.name}
+              className="h-8 shrink-0"
             >
               <BookOpen className="w-4 h-4 mr-2 shrink-0" />
               <span className="truncate max-w-36 inline-block">
                 {rubricFile ? rubricFile.name : "Upload rubric"}
               </span>
             </Button>
-            <label className="cursor-pointer">
+            <label className="cursor-pointer shrink-0">
               <input
                 type="file"
                 accept="audio/*,video/*"
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <div className="flex items-center gap-2 px-4 h-8 bg-secondary hover:bg-secondary/80 rounded-lg border border-border transition-colors min-w-0">
+              <div className="flex items-center justify-center gap-2 px-4 h-8 rounded-md border border-border bg-secondary hover:bg-secondary/80 transition-colors min-w-0">
                 <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-sm text-foreground min-w-0 max-w-44 truncate">
                   {file ? file.name : "Upload Call"}
                 </span>
               </div>
             </label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => file && transcribeOnly(file)}
+              disabled={!file || isLoading}
+              className="h-8 shrink-0 gap-2"
+            >
+              <FileText className="w-4 h-4 shrink-0" />
+              Transcribe
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={runAnalysis}
+              disabled={
+                !file ||
+                isLoading ||
+                (transcript.length === 0 && !rubricFile)
+              }
+              className="h-8 shrink-0 gap-2"
+              title={
+                transcript.length === 0 && rubricFile
+                  ? "Transcribe first, then analyze"
+                  : undefined
+              }
+            >
+              <Sparkles className="w-4 h-4 shrink-0" />
+              Analyze
+            </Button>
           </div>
         </div>
 
@@ -1395,10 +1502,14 @@ export default function QADashboard() {
               <Spinner className="w-6 h-6 text-muted-foreground" />
               <div className="text-left">
                 <p className="text-sm text-muted-foreground">
-                  Analyzing call...
+                  {loadingPhase === "analyze"
+                    ? "Analyzing..."
+                    : "Transcribing..."}
                 </p>
                 <p className="text-xs text-muted-foreground/80">
-                  Generating transcript and insights
+                  {loadingPhase === "analyze"
+                    ? "Generating insights"
+                    : "Generating transcript"}
                 </p>
               </div>
             </div>
@@ -1544,10 +1655,14 @@ export default function QADashboard() {
                 <div className="flex flex-col items-center justify-center gap-3 h-full min-h-[200px] text-center">
                   <Spinner className="w-10 h-10 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    Analyzing call...
+                    {loadingPhase === "analyze"
+                      ? "Analyzing..."
+                      : "Transcribing..."}
                   </p>
                   <p className="text-xs text-muted-foreground/80">
-                    Generating transcript and insights
+                    {loadingPhase === "analyze"
+                      ? "Generating insights"
+                      : "Generating transcript"}
                   </p>
                 </div>
               ) : showAISummary ? (
@@ -1562,10 +1677,16 @@ export default function QADashboard() {
                     const isAgent = line.speaker === "agent";
                     const isDeleted = deletedLineIds.includes(line.id);
                     // Comments (good/bad/improvement/uncertain) only on agent lines—never on customer (blue) messages.
-                    const isGood = isAgent && momentsGood.some((m) => m.lineId === line.id);
-                    const isBad = isAgent && momentsBad.some((m) => m.lineId === line.id);
-                    const isImprovement = isAgent && momentsImprovement.some((m) => m.lineId === line.id);
-                    const isUncertain = isAgent && momentsUncertain.some((m) => m.lineId === line.id);
+                    const isGood =
+                      isAgent && momentsGood.some((m) => m.lineId === line.id);
+                    const isBad =
+                      isAgent && momentsBad.some((m) => m.lineId === line.id);
+                    const isImprovement =
+                      isAgent &&
+                      momentsImprovement.some((m) => m.lineId === line.id);
+                    const isUncertain =
+                      isAgent &&
+                      momentsUncertain.some((m) => m.lineId === line.id);
 
                     return (
                       <div
@@ -1644,10 +1765,14 @@ export default function QADashboard() {
               <div className="flex flex-col items-center justify-center gap-3 flex-1 min-h-[200px] text-center py-8">
                 <Spinner className="w-10 h-10 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  Analyzing call...
+                  {loadingPhase === "analyze"
+                    ? "Analyzing..."
+                    : "Transcribing..."}
                 </p>
                 <p className="text-xs text-muted-foreground/80">
-                  Generating transcript and insights
+                  {loadingPhase === "analyze"
+                    ? "Generating insights"
+                    : "Generating transcript"}
                 </p>
               </div>
             ) : (
@@ -1730,32 +1855,32 @@ export default function QADashboard() {
                             )}
                           </div>
                           <div className="flex items-center gap-1 ml-2 flex-wrap">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                              onClick={() => setNoteDialogLineId(moment.lineId)}
+                              title="Add note"
+                            >
+                              <MessageSquare
+                                className={cn(
+                                  "w-3.5 h-3.5",
+                                  userNotes[moment.lineId] &&
+                                    "fill-amber-500/50 text-amber-400",
+                                )}
+                              />
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="size-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                  onClick={() => setNoteDialogLineId(moment.lineId)}
-                                  title="Add note"
+                                  title="Move to different category"
                                 >
-                                  <MessageSquare
-                                    className={cn(
-                                      "w-3.5 h-3.5",
-                                      userNotes[moment.lineId] &&
-                                        "fill-amber-500/50 text-amber-400",
-                                    )}
-                                  />
+                                  <Pencil className="w-3.5 h-3.5" />
                                 </Button>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                      title="Move to different category"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
+                              </DropdownMenuTrigger>
                               <DropdownMenuContent align="start">
                                 <DropdownMenuItem
                                   onSelect={() =>
@@ -1805,7 +1930,9 @@ export default function QADashboard() {
                                   </DialogTitle>
                                 </DialogHeader>
                                 <div className="text-sm">
-                                  <h4 className="font-medium text-foreground mb-1">Description (from rubric)</h4>
+                                  <h4 className="font-medium text-foreground mb-1">
+                                    Description (from rubric)
+                                  </h4>
                                   <p className="text-muted-foreground leading-relaxed">
                                     {moment.rubricExact || "—"}
                                   </p>
@@ -1972,7 +2099,9 @@ export default function QADashboard() {
                                   </DialogTitle>
                                 </DialogHeader>
                                 <div className="text-sm">
-                                  <h4 className="font-medium text-foreground mb-1">Description (from rubric)</h4>
+                                  <h4 className="font-medium text-foreground mb-1">
+                                    Description (from rubric)
+                                  </h4>
                                   <p className="text-muted-foreground leading-relaxed">
                                     {moment.rubricExact || "—"}
                                   </p>
@@ -2151,7 +2280,9 @@ export default function QADashboard() {
                                   </DialogTitle>
                                 </DialogHeader>
                                 <div className="text-sm">
-                                  <h4 className="font-medium text-foreground mb-1">Description (from rubric)</h4>
+                                  <h4 className="font-medium text-foreground mb-1">
+                                    Description (from rubric)
+                                  </h4>
                                   <p className="text-muted-foreground leading-relaxed">
                                     {moment.rubricExact || "—"}
                                   </p>
@@ -2334,7 +2465,9 @@ export default function QADashboard() {
                                   </DialogTitle>
                                 </DialogHeader>
                                 <div className="text-sm">
-                                  <h4 className="font-medium text-foreground mb-1">Description (from rubric)</h4>
+                                  <h4 className="font-medium text-foreground mb-1">
+                                    Description (from rubric)
+                                  </h4>
                                   <p className="text-muted-foreground leading-relaxed">
                                     {moment.rubricExact || "—"}
                                   </p>
@@ -2391,7 +2524,10 @@ export default function QADashboard() {
                 const d = e.currentTarget.duration;
                 setTotalDuration(Number.isFinite(d) && d > 0 ? d : 1);
                 if (Number.isFinite(d) && d > 0)
-                  setReport((prev) => ({ ...prev, duration: formatTimeSec(d) }));
+                  setReport((prev) => ({
+                    ...prev,
+                    duration: formatTimeSec(d),
+                  }));
               }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
@@ -2408,7 +2544,10 @@ export default function QADashboard() {
                 const d = e.currentTarget.duration;
                 setTotalDuration(Number.isFinite(d) && d > 0 ? d : 1);
                 if (Number.isFinite(d) && d > 0)
-                  setReport((prev) => ({ ...prev, duration: formatTimeSec(d) }));
+                  setReport((prev) => ({
+                    ...prev,
+                    duration: formatTimeSec(d),
+                  }));
               }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}

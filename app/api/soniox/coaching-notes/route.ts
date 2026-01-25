@@ -6,24 +6,36 @@ const coachingNotesSchema = z.object({
   objections: z
     .array(z.string())
     .max(6)
-    .describe("What the customer is objecting to, unhappy about, or finding problematic. For Notes. Empty if none."),
+    .describe(
+      "What the customer is objecting to, unhappy about, or finding problematic. For Notes. Empty if none.",
+    ),
   solutions: z
     .array(z.string())
     .max(4)
-    .describe("Concrete solutions the rep could offer for those problems. For Solutions. Empty if no problems or no feasible solutions."),
+    .describe(
+      "Concrete solutions the rep could offer for those problems. For Solutions. Empty if no problems or no feasible solutions.",
+    ),
   coaching: z
     .array(z.string())
     .max(3)
-    .describe("How to propose/offer those solutions to the customer. For Coaching. Empty if no solutions to propose."),
+    .describe(
+      "How to propose/offer those solutions to the customer. For Coaching. Empty if no solutions to propose.",
+    ),
 });
 
 export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return Response.json({ error: "OPENAI_API_KEY is not set." }, { status: 500 });
+    return Response.json(
+      { error: "OPENAI_API_KEY is not set." },
+      { status: 500 },
+    );
   }
 
-  let body: { transcript?: string; recentSentiments?: { score: number; sentiment: string }[] };
+  let body: {
+    transcript?: string;
+    recentSentiments?: { score: number; sentiment: string }[];
+  };
   try {
     body = await req.json();
   } catch {
@@ -33,14 +45,22 @@ export async function POST(req: Request) {
   const transcript = (body?.transcript ?? "").trim();
   if (!transcript || transcript.length < 30) {
     return Response.json(
-      { error: "Body must include 'transcript' (non-empty, at least ~30 chars)." },
-      { status: 400 }
+      {
+        error:
+          "Body must include 'transcript' (non-empty, at least ~30 chars).",
+      },
+      { status: 400 },
     );
   }
 
-  const raw = Array.isArray(body?.recentSentiments) ? body.recentSentiments : [];
+  const raw = Array.isArray(body?.recentSentiments)
+    ? body.recentSentiments
+    : [];
   const recentSentiments = raw
-    .filter((s): s is { score: number; sentiment: string } => typeof s?.score === "number" && typeof s?.sentiment === "string")
+    .filter(
+      (s): s is { score: number; sentiment: string } =>
+        typeof s?.score === "number" && typeof s?.sentiment === "string",
+    )
     .slice(-3);
 
   const sentimentBlock =
@@ -72,7 +92,9 @@ For the solutions above, write 1–3 coaching tips on HOW to propose or offer th
       prompt,
     });
 
-    const obj = result.object as { objections?: string[]; solutions?: string[]; coaching?: string[] } | undefined;
+    const obj = result.object as
+      | { objections?: string[]; solutions?: string[]; coaching?: string[] }
+      | undefined;
     const objections = Array.isArray(obj?.objections) ? obj.objections : [];
     const solutions = Array.isArray(obj?.solutions) ? obj.solutions : [];
     const coaching = Array.isArray(obj?.coaching) ? obj.coaching : [];

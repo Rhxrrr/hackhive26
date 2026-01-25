@@ -6,7 +6,9 @@ const feedbackSchema = z.object({
   tips: z
     .array(z.string())
     .max(3)
-    .describe("0–3 coaching tips. Empty array if nothing important to improve."),
+    .describe(
+      "0–3 coaching tips. Empty array if nothing important to improve.",
+    ),
 });
 
 export async function POST(req: Request) {
@@ -14,11 +16,14 @@ export async function POST(req: Request) {
   if (!apiKey) {
     return Response.json(
       { error: "OPENAI_API_KEY is not set." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
-  let body: { transcript?: string; recentSentiments?: { score: number; sentiment: string }[] };
+  let body: {
+    transcript?: string;
+    recentSentiments?: { score: number; sentiment: string }[];
+  };
   try {
     body = await req.json();
   } catch {
@@ -28,14 +33,22 @@ export async function POST(req: Request) {
   const transcript = (body?.transcript ?? "").trim();
   if (!transcript || transcript.length < 30) {
     return Response.json(
-      { error: "Body must include 'transcript' (non-empty, at least ~30 chars)." },
-      { status: 400 }
+      {
+        error:
+          "Body must include 'transcript' (non-empty, at least ~30 chars).",
+      },
+      { status: 400 },
     );
   }
 
-  const raw = Array.isArray(body?.recentSentiments) ? body.recentSentiments : [];
+  const raw = Array.isArray(body?.recentSentiments)
+    ? body.recentSentiments
+    : [];
   const recentSentiments = raw
-    .filter((s): s is { score: number; sentiment: string } => typeof s?.score === "number" && typeof s?.sentiment === "string")
+    .filter(
+      (s): s is { score: number; sentiment: string } =>
+        typeof s?.score === "number" && typeof s?.sentiment === "string",
+    )
     .slice(-3);
 
   const sentimentBlock =

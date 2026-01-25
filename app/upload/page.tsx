@@ -79,7 +79,7 @@ export default function UploadCallPage() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Upload Call</h1>
               <p className="text-sm text-muted-foreground">
-                Upload callrecordings for AI analysis
+                Upload call recordings for AI analysis
               </p>
             </div>
           </div>

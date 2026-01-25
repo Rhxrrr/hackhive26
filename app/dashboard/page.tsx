@@ -221,7 +221,7 @@ export default function AgentPerformancePage() {
                   </defs>
                   <PolarGrid stroke="white" strokeOpacity={0.5} strokeWidth={1} />
                   <PolarAngleAxis dataKey="subject" tick={{ fill: "white", fontSize: 12, fontWeight: 500 }} />
-                  <PolarRadiusAxis domain={[0, 100]} tick={{ fill: "white", fontSize: 10 }} />
+                  <PolarRadiusAxis domain={[0, 100]} tick={false} />
                   <Radar name="Score" dataKey="score" stroke="#60a5fa" strokeWidth={2} fill="url(#radarFill)" dot={{ r: 5, fill: "#60a5fa", stroke: "white", strokeWidth: 1.5 }} />
                 </RadarChart>
               </ChartContainer>

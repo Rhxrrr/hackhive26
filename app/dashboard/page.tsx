@@ -80,10 +80,10 @@ function rubricToScoreProgression(rubric: { category: string; scores: number[] }
   })
 }
 
-/** KPI per agent: qaScore (from calc), previousScore (for "from X"), totalCalls, highConfidence, flagged. */
-const kpiByAgent: Record<string, { previousScore: number; totalCalls: number; highConfidence: string; flagged: number }> = {
-  "marcus-chen": { previousScore: 72, totalCalls: 156, highConfidence: "68%", flagged: 18 },
-  "sarah-mitchell": { previousScore: 78, totalCalls: 142, highConfidence: "72%", flagged: 12 },
+/** KPI per agent: previousScore (for "from X") in percent change. */
+const kpiByAgent: Record<string, { previousScore: number }> = {
+  "marcus-chen": { previousScore: 72 },
+  "sarah-mitchell": { previousScore: 78 },
 }
 
 function getScoreBadgeClass(score: number): string {
@@ -178,20 +178,6 @@ export default function AgentPerformancePage() {
                 </span>
                 <span className="text-sm text-muted-foreground">from {kpi.previousScore}</span>
               </div>
-            </div>
-          </div>
-          <div className="flex gap-8">
-            <div>
-              <span className="text-2xl font-bold text-foreground">{kpi.totalCalls}</span>
-              <span className="ml-2 text-sm text-muted-foreground">Total Calls</span>
-            </div>
-            <div>
-              <span className="text-2xl font-bold text-foreground">{kpi.highConfidence}</span>
-              <span className="ml-2 text-sm text-muted-foreground">High Confidence</span>
-            </div>
-            <div>
-              <span className="text-2xl font-bold text-red-400">{kpi.flagged}</span>
-              <span className="ml-2 text-sm text-muted-foreground">Flagged</span>
             </div>
           </div>
         </div>

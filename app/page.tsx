@@ -307,7 +307,7 @@ export default function QADashboard() {
       description?: string;
       rubricExact?: string;
     }>,
-    tx: { id: number; time: string }[]
+    tx: { id: number; time: string; speaker?: string }[]
   ) => {
     const good: Moment[] = [];
     const bad: Moment[] = [];
@@ -315,10 +315,21 @@ export default function QADashboard() {
     const uncertain: Moment[] = [];
     for (const m of markers ?? []) {
       const t = Number(m.timestamp) || 0;
+      let lineId = findLineId(tx, t);
+      const line = tx.find((l) => l.id === lineId);
+      // If the timestamp maps to a customer line, attach to the nearest agent line instead of dropping.
+      if (line?.speaker === "customer") {
+        const idx = tx.findIndex((l) => l.id === lineId);
+        const nextAgent = tx.slice(idx + 1).find((l) => l.speaker === "agent");
+        const prevAgent = [...tx.slice(0, idx)].reverse().find((l) => l.speaker === "agent");
+        const agentLine = nextAgent ?? prevAgent;
+        if (!agentLine) continue; // no agent lines in transcript (edge case)
+        lineId = agentLine.id;
+      }
       const moment: Moment = {
         time: formatTimeSec(t),
         message: String(m.description ?? ""),
-        lineId: findLineId(tx, t),
+        lineId,
         rubric: String(m.category ?? ""),
         rubricSection: String(m.category ?? "—"),
         rubricDescription: String(m.description ?? ""),
@@ -485,6 +496,7 @@ export default function QADashboard() {
       }
       const tx = Array.isArray(trData.transcript) ? trData.transcript : [];
       const duration = trData.duration || 180;
+      setCallDuration(duration);
       setTranscript(tx.length > 0 ? tx : INITIAL_TRANSCRIPT);
 
       const transcriptForAnalyze =
@@ -947,13 +959,24 @@ export default function QADashboard() {
     doc.text("QA Summary:", MARGIN, y);
     y += LINE;
     doc.setFont("helvetica", "normal");
-    addBody(report.summary);
+    const summaryText =
+      report.summary ||
+      (momentsGood.length + momentsBad.length + momentsImprovement.length > 0
+        ? `Based on moment review: ${momentsGood.length} good, ${momentsBad.length} bad, ${momentsImprovement.length} needs improvement.`
+        : "");
+    if (summaryText) addBody(summaryText);
     y += 4;
     doc.setFont("helvetica", "bold");
     doc.text("Recommendations:", MARGIN, y);
     y += LINE;
     doc.setFont("helvetica", "normal");
-    report.recommendations.forEach((r) => addBullet("• " + r));
+    const recs =
+      report.recommendations.length > 0
+        ? report.recommendations
+        : [...momentsBad, ...momentsImprovement].map(
+            (m) => `[${m.time}] (${m.rubric || "—"}): ${m.message}`
+          );
+    recs.forEach((r) => addBullet("• " + r));
 
     // 2. AI Generated Summary (conversation)
     addTitle("AI-Generated Call Summary");
@@ -964,7 +987,7 @@ export default function QADashboard() {
     momentsGood.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(
-        `  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`,
+        `  Rubric: ${m.rubric} — ${m.rubricExact || m.rubricDescription}`,
         8,
       );
       y += 2;
@@ -975,7 +998,7 @@ export default function QADashboard() {
     momentsBad.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(
-        `  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`,
+        `  Rubric: ${m.rubric} — ${m.rubricExact || m.rubricDescription}`,
         8,
       );
       y += 2;
@@ -986,7 +1009,7 @@ export default function QADashboard() {
     momentsImprovement.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(
-        `  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`,
+        `  Rubric: ${m.rubric} — ${m.rubricExact || m.rubricDescription}`,
         8,
       );
       y += 2;
@@ -997,7 +1020,7 @@ export default function QADashboard() {
     momentsUncertain.forEach((m) => {
       addBullet(`[${m.time}] ${m.message}`);
       addBullet(
-        `  Rubric: ${m.rubric} (${m.rubricSection}) — ${m.rubricDescription}`,
+        `  Rubric: ${m.rubric} — ${m.rubricExact || m.rubricDescription}`,
         8,
       );
       y += 2;
@@ -1039,12 +1062,12 @@ export default function QADashboard() {
                   Full Report
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Full QA Report</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-6 py-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="space-y-7 py-5">
+                  <div className="grid grid-cols-2 gap-5 text-sm">
                     <div>
                       <span className="text-muted-foreground">Call ID:</span>
                       <span className="ml-2 text-foreground">
@@ -1158,17 +1181,103 @@ export default function QADashboard() {
                     })()}
                   </div>
 
+                  {(momentsGood.length > 0 ||
+                    momentsBad.length > 0 ||
+                    momentsImprovement.length > 0) && (
+                    <>
+                      {momentsGood.length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-2">Good</h4>
+                          <ul className="space-y-2">
+                            {momentsGood.map((m, i) => (
+                              <li key={i} className="text-sm">
+                                <span className="text-muted-foreground">
+                                  [{m.time}]
+                                </span>{" "}
+                                {m.message}
+                                {(m.rubric || m.rubricExact) && (
+                                  <p className="text-muted-foreground text-xs mt-0.5">
+                                    Rubric: {m.rubric}
+                                    {m.rubricExact ? ` — ${m.rubricExact}` : ""}
+                                  </p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {momentsBad.length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-2">Bad</h4>
+                          <ul className="space-y-2">
+                            {momentsBad.map((m, i) => (
+                              <li key={i} className="text-sm">
+                                <span className="text-muted-foreground">
+                                  [{m.time}]
+                                </span>{" "}
+                                {m.message}
+                                {(m.rubric || m.rubricExact) && (
+                                  <p className="text-muted-foreground text-xs mt-0.5">
+                                    Rubric: {m.rubric}
+                                    {m.rubricExact ? ` — ${m.rubricExact}` : ""}
+                                  </p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {momentsImprovement.length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-2">Needs Improvement</h4>
+                          <ul className="space-y-2">
+                            {momentsImprovement.map((m, i) => (
+                              <li key={i} className="text-sm">
+                                <span className="text-muted-foreground">
+                                  [{m.time}]
+                                </span>{" "}
+                                {m.message}
+                                {(m.rubric || m.rubricExact) && (
+                                  <p className="text-muted-foreground text-xs mt-0.5">
+                                    Rubric: {m.rubric}
+                                    {m.rubricExact ? ` — ${m.rubricExact}` : ""}
+                                  </p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   <div>
                     <h4 className="font-medium mb-2">Summary</h4>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      {report.summary}
+                      {report.summary ||
+                        (momentsGood.length +
+                          momentsBad.length +
+                          momentsImprovement.length >
+                        0
+                          ? `Based on moment review: ${momentsGood.length} good, ${momentsBad.length} bad, ${momentsImprovement.length} needs improvement.`
+                          : "")}
                     </p>
                   </div>
 
                   <div>
                     <h4 className="font-medium mb-2">Recommendations</h4>
                     <ul className="space-y-2">
-                      {report.recommendations.map((rec, i) => (
+                      {(
+                        report.recommendations.length > 0
+                          ? report.recommendations
+                          : [
+                              ...momentsBad,
+                              ...momentsImprovement,
+                            ].map(
+                              (m) =>
+                                `[${m.time}] (${m.rubric || "—"}): ${m.message}`
+                            )
+                      ).map((rec, i) => (
                         <li
                           key={i}
                           className="text-sm text-muted-foreground flex gap-2"
@@ -1207,7 +1316,7 @@ export default function QADashboard() {
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg border border-border transition-colors min-w-0">
+              <div className="flex items-center gap-2 px-4 h-8 bg-secondary hover:bg-secondary/80 rounded-lg border border-border transition-colors min-w-0">
                 <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-sm text-foreground min-w-0 max-w-44 truncate">
                   {file ? file.name : "Upload Call"}
@@ -1310,7 +1419,7 @@ export default function QADashboard() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="shrink-0 h-7 w-7"
+                  className="shrink-0 size-8"
                   onClick={() => setIsMuted(!isMuted)}
                 >
                   {isMuted || volume === 0 ? (
@@ -1332,7 +1441,7 @@ export default function QADashboard() {
                 />
               </div>
               <Select value={playbackSpeed} onValueChange={setPlaybackSpeed}>
-                <SelectTrigger className="w-16 h-7 text-xs">
+                <SelectTrigger className="w-16 h-8 text-xs">
                   <SelectValue placeholder="Speed" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1404,18 +1513,13 @@ export default function QADashboard() {
               ) : (
                 <>
                   {transcript.map((line) => {
-                    const isGood = momentsGood.some(
-                      (m) => m.lineId === line.id,
-                    );
-                    const isBad = momentsBad.some((m) => m.lineId === line.id);
-                    const isImprovement = momentsImprovement.some(
-                      (m) => m.lineId === line.id,
-                    );
-                    const isUncertain = momentsUncertain.some(
-                      (m) => m.lineId === line.id,
-                    );
                     const isAgent = line.speaker === "agent";
                     const isDeleted = deletedLineIds.includes(line.id);
+                    // Comments (good/bad/improvement/uncertain) only on agent lines—never on customer (blue) messages.
+                    const isGood = isAgent && momentsGood.some((m) => m.lineId === line.id);
+                    const isBad = isAgent && momentsBad.some((m) => m.lineId === line.id);
+                    const isImprovement = isAgent && momentsImprovement.some((m) => m.lineId === line.id);
+                    const isUncertain = isAgent && momentsUncertain.some((m) => m.lineId === line.id);
 
                     return (
                       <div
@@ -1443,9 +1547,7 @@ export default function QADashboard() {
                                       : isImprovement
                                         ? "bg-amber-500/20 text-amber-100 border border-amber-500/30"
                                         : "bg-secondary text-foreground"
-                                  : isUncertain
-                                    ? "bg-purple-500/20 text-purple-100 border border-purple-500/30"
-                                    : "bg-blue-600 text-white"
+                                  : "bg-blue-600 text-white"
                             } ${isAgent ? "rounded-bl-md" : "rounded-br-md"} ${
                               highlightedLine === line.id
                                 ? "shadow-[inset_0_0_0_2px_rgba(251,191,36,0.5)]"
@@ -1582,32 +1684,32 @@ export default function QADashboard() {
                             )}
                           </div>
                           <div className="flex items-center gap-1 ml-2 flex-wrap">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                              onClick={() => setNoteDialogLineId(moment.lineId)}
-                              title="Add note"
-                            >
-                              <MessageSquare
-                                className={cn(
-                                  "w-3.5 h-3.5",
-                                  userNotes[moment.lineId] &&
-                                    "fill-amber-500/50 text-amber-400",
-                                )}
-                              />
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                  title="Move to different category"
+                                  className="size-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                  onClick={() => setNoteDialogLineId(moment.lineId)}
+                                  title="Add note"
                                 >
-                                  <Pencil className="w-3.5 h-3.5" />
+                                  <MessageSquare
+                                    className={cn(
+                                      "w-3.5 h-3.5",
+                                      userNotes[moment.lineId] &&
+                                        "fill-amber-500/50 text-amber-400",
+                                    )}
+                                  />
                                 </Button>
-                              </DropdownMenuTrigger>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                      title="Move to different category"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
                               <DropdownMenuContent align="start">
                                 <DropdownMenuItem
                                   onSelect={() =>
@@ -1644,7 +1746,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                  className="h-8 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                                 >
                                   <BookOpen className="w-3 h-3 mr-1" />
                                   Rubric: {moment.rubric}
@@ -1752,7 +1854,7 @@ export default function QADashboard() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              className="size-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
                               onClick={() => setNoteDialogLineId(moment.lineId)}
                               title="Add note"
                             >
@@ -1769,7 +1871,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                  className="size-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
                                   title="Move to different category"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
@@ -1811,7 +1913,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                  className="h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
                                 >
                                   <BookOpen className="w-3 h-3 mr-1" />
                                   Rubric: {moment.rubric}
@@ -1925,7 +2027,7 @@ export default function QADashboard() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                              className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
                               onClick={() => setNoteDialogLineId(moment.lineId)}
                               title="Add note"
                             >
@@ -1942,7 +2044,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                  className="size-8 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
                                   title="Move to different category"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
@@ -1990,7 +2092,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                  className="h-8 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
                                 >
                                   <BookOpen className="w-3 h-3 mr-1" />
                                   Rubric: {moment.rubric}
@@ -2108,7 +2210,7 @@ export default function QADashboard() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                              className="size-8 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
                               onClick={() => setNoteDialogLineId(moment.lineId)}
                               title="Add note"
                             >
@@ -2125,7 +2227,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                                  className="size-8 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
                                   title="Move to different category"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
@@ -2173,7 +2275,7 @@ export default function QADashboard() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                                  className="h-8 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
                                 >
                                   <BookOpen className="w-3 h-3 mr-1" />
                                   Rubric: {moment.rubric}
@@ -2239,9 +2341,12 @@ export default function QADashboard() {
               src={mediaObjectUrl || undefined}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-              onLoadedMetadata={(e) =>
-                setTotalDuration(e.currentTarget.duration)
-              }
+              onLoadedMetadata={(e) => {
+                const d = e.currentTarget.duration;
+                setTotalDuration(Number.isFinite(d) && d > 0 ? d : 1);
+                if (Number.isFinite(d) && d > 0)
+                  setReport((prev) => ({ ...prev, duration: formatTimeSec(d) }));
+              }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
               onEnded={() => setIsPlaying(false)}
@@ -2253,9 +2358,12 @@ export default function QADashboard() {
               src={mediaObjectUrl || undefined}
               className="hidden"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-              onLoadedMetadata={(e) =>
-                setTotalDuration(e.currentTarget.duration)
-              }
+              onLoadedMetadata={(e) => {
+                const d = e.currentTarget.duration;
+                setTotalDuration(Number.isFinite(d) && d > 0 ? d : 1);
+                if (Number.isFinite(d) && d > 0)
+                  setReport((prev) => ({ ...prev, duration: formatTimeSec(d) }));
+              }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
               onEnded={() => setIsPlaying(false)}

@@ -915,8 +915,9 @@ export default function LiveCallPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
+      {/* Grid: below nav only; top edge = first horizontal line, aligned with nav’s border-b */}
       <div
-        className="fixed inset-0 z-0 pointer-events-none"
+        className="fixed top-16 right-0 bottom-0 left-0 z-0 pointer-events-none"
         style={{
           backgroundImage: `
             linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -927,10 +928,11 @@ export default function LiveCallPage() {
         }}
       />
 
-      {/* Header */}
-      <header className="relative z-10 border-b border-border px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      {/* Header: solid bg (no grid); h-16 so grid’s top aligns with border-b */}
+      <header className="relative z-10 h-16 flex items-center border-b border-border bg-background px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center w-full gap-x-8">
+          {/* Left: QA Review / Live Call Assistant */}
+          <div className="flex items-center gap-2 shrink-0">
             <Link
               href="/"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -941,13 +943,14 @@ export default function LiveCallPage() {
             <h1 className="text-lg font-semibold">Live Call Assistant</h1>
           </div>
 
-          <div className="flex items-center gap-6">
+          {/* Center: phone number and time */}
+          <div className="flex-1 flex justify-center items-center gap-6 min-w-0">
             <div className="flex items-center gap-2">
-              <Phone className="w-4 h-4 text-muted-foreground" />
+              <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-sm">{PHONE_NUMBER}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-muted-foreground" />
+              <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-mono">
                 {isConnected ? callDuration : "—"}
               </span>
@@ -963,7 +966,8 @@ export default function LiveCallPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Right: microphone and Connect button */}
+          <div className="flex items-center gap-2 shrink-0">
             {!isConnected && transcriptBlocks.length > 0 && (
               <>
                 <Button

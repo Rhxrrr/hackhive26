@@ -592,9 +592,18 @@ export default function QADashboard() {
   ) => {
     const transcriptForAnalyze =
       transcriptLines
-        .map(
-          (l) => `${l.speaker === "agent" ? "Agent" : "Customer"}: ${l.text}`,
-        )
+        .map((l, i) => {
+          const speaker = l.speaker === "agent" ? "Agent" : "Customer";
+          const timePart = `[${l.time}]`;
+          const gapSec =
+            i > 0
+              ? parseTimeToSeconds(l.time) -
+                parseTimeToSeconds(transcriptLines[i - 1].time)
+              : null;
+          const gapPart =
+            gapSec != null ? ` (${gapSec}s after previous)` : "";
+          return `${timePart} ${speaker}: ${l.text}${gapPart}`;
+        })
         .join("\n") || "";
     const anForm = new FormData();
     anForm.append("transcript", transcriptForAnalyze);

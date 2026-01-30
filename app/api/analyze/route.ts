@@ -25,7 +25,9 @@ const analysisSchema = z.object({
       z.object({
         timestamp: z
           .number()
-          .describe("Timestamp in seconds where this event occurs"),
+          .describe(
+            "Exact seconds of the Agent line where this occurs. Use that line's [MM:SS] from the transcript: MM*60+SS (e.g. [0:45] → 45). Must match the transcript so the marker appears at the correct spot in the audio.",
+          ),
         type: z
           .enum(["good", "bad", "uncertain", "improvement"])
           .describe(
@@ -202,6 +204,12 @@ export async function POST(req: Request) {
       rubricText.includes("Section:") &&
       rubricText.includes("Description:");
 
+    const rubricMentionsInterruption =
+      rubricText.length > 0 &&
+      /interrupt|cut off|cutting off|turn.?taking|listen|let the customer finish|don't interrupt|do not interrupt|allow.*finish|customer.*finish/i.test(
+        rubricText,
+      );
+
     const rubricBlock = rubricText
       ? `
 
@@ -212,6 +220,12 @@ Copy the **description** exactly as it appears in the rubric—same words, punct
             ? "If the rubric uses 'Description: X', use the exact text after 'Description: '."
             : "Use the longer criterion text, not the section title."
         } \`description\` = your comment on the agent's words/actions only (Agent: lines); never attribute customer lines to the agent. Never leave \`rubricExact\` empty. Markers only for Agent: lines and explicit rubric criteria; strengths/improvements cite exact section titles; categoryScores from matching rubric criteria.
+${
+  rubricMentionsInterruption
+    ? `
+**Interruption / turn-taking (REQUIRED when rubric mentions it):** If the rubric refers to interruption, cutting off the customer, turn-taking, listening, or letting the customer finish, you MUST apply that criterion accurately. Use BOTH (1) **message context**: the Customer line ends abruptly, mid-sentence, with "—", "and", "so", "but", "because", or looks incomplete; AND (2) **time between turns**: each line may show "(Xs after previous)" — if the Agent speaks 0–4 seconds after the previous Customer line, the agent may have cut off the customer. For every Agent line where the customer was likely cut off (context + short gap), add a **bad** marker with that Agent line's timestamp (from its [MM:SS]: MM*60+SS), category = the rubric section that mentions interruption/turn-taking/listening, and description stating the agent interrupted or cut off the customer. You must follow the rubric on this; do not skip interruption detection when the rubric requires it.`
+    : ""
+}
 
 ---
 
@@ -225,33 +239,35 @@ ${rubricText}`
     const result = await generateText({
       model: openai("gpt-4o-mini"),
       output: Output.object({ schema: analysisSchema }),
-      prompt: `You are a QA analyst reviewing a customer service call. Analyze the following call transcript and provide detailed feedback.
+      prompt: `You are a QA analyst reviewing a customer service call. Analyze the following call transcript and provide detailed feedback. You must follow the rubric accurately, especially any criteria about interruption, turn-taking, or listening.
 
-**Transcript format:** Each line is prefixed with "Agent:" or "Customer:". The transcript is clearly separated—**trust these labels**. The **Agent** is the employee being evaluated. The **Customer** is the caller. Only **Agent:** lines are evaluated; **Customer:** lines are for context only.
+**Transcript format:** Each line starts with [MM:SS] (exact time in the call), then "Agent:" or "Customer:", then the text. Some lines end with "(Xs after previous)" — that is the seconds since the previous speaker. Use this to detect interruptions: if an Agent line shows 0–4s after previous and the previous Customer line looks incomplete or ends abruptly, the agent likely cut off the customer. The **Agent** is the employee being evaluated; **Customer** lines are for context. Only **Agent:** lines are evaluated.
 
 **Agent-only evaluation (strict):**
 - All feedback (overall score, markers, strengths, improvements, categoryScores) is about the **AGENT only** and must be based **only on Agent: lines**.
-- **Markers:** Create each marker for an **Agent:** line only. The \`description\` must comment on what the **agent** said or did at that moment and how it relates to the rubric. **Never** base a marker on a Customer: line. **Never** attribute the customer's words or behavior to the agent (e.g. if the line is "Customer: Hi Alex, I'm calling because..."—the customer is addressing the agent and stating their reason; do not write "The agent introduced themselves" or "The agent fostered a personal connection"; that would be incorrect).
+- **Markers:** Create each marker for an **Agent:** line only. Set \`timestamp\` to the **exact seconds** of that Agent line: from its [MM:SS], use MM*60+SS (e.g. [0:45] → 45, [1:30] → 90). The \`description\` must comment on what the **agent** said or did and how it relates to the rubric. **Never** base a marker on a Customer: line; never attribute the customer's words to the agent.
 - **Strengths and improvements:** Only from the agent's words and actions; each must cite an exact rubric section. Do not credit or fault the agent for what the customer said or did.
-- **Rubric:** When a rubric is provided, every marker, strength, and improvement must tie to a rubric section. Comments must be strictly about where the **agent's** script meets or misses the rubric—not the customer's.
+- **Rubric:** When a rubric is provided, every marker, strength, and improvement must tie to a rubric section. You must follow the rubric accurately. If the rubric mentions interruption, cutting off the customer, turn-taking, or listening, you MUST identify every Agent line where the agent interrupted or cut off the customer (using both message context and time between turns) and add a bad marker for each, citing that rubric section.
 
-The call duration is ${duration} seconds. Create markers at timestamps that correspond to **Agent:** lines (from 0 to ${duration} seconds).
+The call duration is ${duration} seconds. Create markers at timestamps that correspond to **Agent:** lines (use each Agent line's [MM:SS] converted to seconds).
 ${rubricBlock}
 
 **Marker types (use exactly one per marker):** good | bad | improvement | uncertain.
 - **good**: Agent did something well (from an Agent: line).
-- **bad**: Clear issue or failure in the agent's response.
+- **bad**: Clear issue or failure in the agent's response. **Include "bad" when the agent interrupts or cuts off the customer:** use (1) message context (Customer line ends abruptly, mid-sentence, with "—", "and", "so", "but", "because", or looks incomplete) and (2) time between turns: "(Xs after previous)" — if the Agent speaks 0–4 seconds after the previous Customer line, the agent may have cut off the customer. Add a bad marker for that Agent line with timestamp = that line's [MM:SS] in seconds.
 - **improvement**: Agent could do better; not a failure.
 - **uncertain**: Context is ambiguous; cannot clearly judge.
 
-Transcript (Agent = employee being evaluated; Customer = caller; evaluate only Agent: lines):
+**Interruption detection (use context + timing):** For each Agent line that immediately follows a Customer line, check: (1) Does the Customer line look cut off or incomplete (ends with —, and, so, but, because, "...", or is a short fragment)? (2) What is the time gap? If the line shows "(0s after previous)" or "(1s after previous)" or "(2s after previous)" or "(3s after previous)" or "(4s after previous)", the agent spoke very soon after the customer—likely an interruption. When both context and timing suggest the agent cut off the customer, you MUST add a bad marker for that Agent line (timestamp = that line's [MM:SS] in seconds, category "Interruption" or the rubric section that covers turn-taking/listening).
+
+Transcript (each line has [MM:SS] and may show "(Xs after previous)" for time between turns):
 ${transcript}
 
 Provide (all feedback from Agent: lines only; relate strictly to the rubric when provided):
 1. **overallScore** (0-100): from agent's performance vs rubric.
 2. **summary** (QA/performance; which rubric criteria the agent met or missed).
 3. **conversationSummary** (neutral: what was discussed, outcome).
-4. **markers** (6-12): Each for an **Agent:** line only. \`category\` = rubric section title; \`rubricExact\` = that section's description copied exactly; \`description\` = your comment on the **agent's** words/actions and how they relate to the rubric. Never use a Customer: line as the basis for a marker's description.
+4. **markers** (6-12): Each for an **Agent:** line only. Set \`timestamp\` to the exact seconds of that Agent line (from its [MM:SS]: MM*60+SS). \`category\` = rubric section title; \`rubricExact\` = that section's description copied exactly; \`description\` = your comment on the **agent's** words/actions and how they relate to the rubric. When the agent cuts off the customer (context + short time gap), add a bad marker for that Agent line and cite the rubric section on interruption/turn-taking if present. Never use a Customer: line as the basis for a marker's description.
 5. **strengths**: cite exact rubric section titles; only from agent behavior on Agent: lines.
 6. **improvements**: cite exact rubric section titles; only from agent behavior on Agent: lines.
 7. **categoryScores**: { opening, empathy, troubleshooting, resolution, closing } 0-100 from rubric criteria.

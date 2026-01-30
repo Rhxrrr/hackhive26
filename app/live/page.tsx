@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { addCall } from "@/lib/call-store";
 import {
   Collapsible,
   CollapsibleContent,
@@ -106,9 +107,12 @@ function scoreToBar(score: number): number {
   return Math.round((score + 1) * 50);
 }
 
-function buildWavBlob(chunks: Uint8Array[]): Blob | null {
+function buildWavBlob(
+  chunks: Uint8Array[],
+  minBytes = TONE_MIN_PCM_BYTES,
+): Blob | null {
   const pcmLength = chunks.reduce((a, c) => a + c.length, 0);
-  if (pcmLength < TONE_MIN_PCM_BYTES) return null;
+  if (pcmLength < minBytes) return null;
   const pcm = new Uint8Array(pcmLength);
   let o = 0;
   for (const c of chunks) {
@@ -209,6 +213,7 @@ export default function LiveCallPage() {
   const toneBufferRef = useRef("");
   const toneSpeakerCountsRef = useRef<Record<string, number>>({});
   const toneAudioChunksRef = useRef<Uint8Array[]>([]);
+  const fullAudioChunksRef = useRef<Uint8Array[]>([]);
   const audioBufferRef = useRef<number[]>([]);
   const isMutedRef = useRef(false);
   const lastProcessedFinalCountRef = useRef(0);
@@ -699,6 +704,7 @@ export default function LiveCallPage() {
     toneBufferRef.current = "";
     toneSpeakerCountsRef.current = {};
     toneAudioChunksRef.current = [];
+    fullAudioChunksRef.current = [];
     audioBufferRef.current = [];
     lastProcessedFinalCountRef.current = 0;
 
@@ -767,7 +773,9 @@ export default function LiveCallPage() {
           out.byteOffset,
           out.byteLength,
         );
-        toneAudioChunksRef.current.push(new Uint8Array(bytes));
+        const chunk = new Uint8Array(bytes);
+        toneAudioChunksRef.current.push(chunk);
+        fullAudioChunksRef.current.push(chunk);
         for (let i = 0; i < bytes.length; i++)
           audioBufferRef.current.push(bytes[i]);
         flushAudio(ws);
@@ -902,6 +910,41 @@ export default function LiveCallPage() {
         fullTranscript,
       );
     }
+
+    // Save call to store so it shows on Call Reviews and can be opened in QA
+    const startTime = callStartRef.current;
+    const durationMs = startTime != null ? Date.now() - startTime : 0;
+    const durationSec = Math.max(1, Math.round(durationMs / 1000));
+    const allMessages = [...messagesRef.current];
+    const cur = currentBlockRef.current;
+    if (cur.text) allMessages.push({ ...cur });
+    const transcript = allMessages.map((m, i) => ({
+      id: i + 1,
+      speaker: Number(m.speaker) % 2 === 1 ? "agent" : "customer",
+      text: m.text,
+      time: `${Math.floor((i * 3) / 60)}:${String((i * 3) % 60).padStart(2, "0")}`,
+    }));
+    const callId = `call-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+    const durationStr = formatDuration(durationMs);
+    const wavBlob = buildWavBlob(fullAudioChunksRef.current, 0);
+    const file = wavBlob
+      ? new File([wavBlob], `call-${callId}.wav`, { type: "audio/wav" })
+      : undefined;
+    addCall({
+      id: callId,
+      date: dateStr,
+      agent: "Agent",
+      customer: "Customer",
+      duration: durationStr,
+      status: "Ready",
+      transcript,
+      durationSec,
+      file,
+    });
     callStartRef.current = null;
     setCallDuration("00:00");
     setStatus("idle");

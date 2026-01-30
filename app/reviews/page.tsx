@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { AppSidebar } from "@/components/app-sidebar"
 import Link from "next/link"
 import { Headphones } from "lucide-react"
+import { getCalls, type CallRecord } from "@/lib/call-store"
 
 type ReviewStatus = "Pending" | "Ready" | "In Progress" | "Completed"
 
@@ -37,6 +39,10 @@ const mockCalls: CallRow[] = [
   { id: "10", date: "Jan 20", agent: "Marcus Chen", customer: "Daniel Kim", duration: "4:10", status: "Ready" },
 ]
 
+function toCallRow(c: CallRecord): CallRow {
+  return { id: c.id, date: c.date, agent: c.agent, customer: c.customer, duration: c.duration, status: c.status }
+}
+
 function getStatusClass(status: ReviewStatus): string {
   switch (status) {
     case "Ready":
@@ -57,6 +63,11 @@ const STATUS_OPTIONS: ReviewStatus[] = ["Pending", "Ready", "In Progress", "Comp
 export default function CallReviewsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [storeCalls, setStoreCalls] = useState<CallRow[]>([])
+  useEffect(() => {
+    setStoreCalls(getCalls().map(toCallRow))
+  }, [searchParams])
+  const allCalls = storeCalls.length > 0 ? storeCalls : mockCalls
   const statusParam = searchParams.get("status")?.toLowerCase() || ""
   const statusFilter = !statusParam || statusParam === "all"
     ? "all"
@@ -64,8 +75,8 @@ export default function CallReviewsPage() {
 
   const filteredCalls =
     statusFilter === "all"
-      ? mockCalls
-      : mockCalls.filter((c) => c.status === statusFilter)
+      ? allCalls
+      : allCalls.filter((c) => c.status === statusFilter)
 
   const handleStatusChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -147,7 +158,7 @@ export default function CallReviewsPage() {
                           <td className="py-3 pl-2 text-right">
                             {row.status === "Ready" || row.status === "Completed" ? (
                               <Link
-                                href="/qa"
+                                href={storeCalls.some((c) => c.id === row.id) ? `/qa?callId=${encodeURIComponent(row.id)}` : "/qa"}
                                 className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-muted-foreground transition-colors"
                                 aria-label={row.status === "Completed" ? `View call: ${row.customer}` : `Review call: ${row.customer}`}
                               >

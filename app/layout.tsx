@@ -12,7 +12,6 @@ export const metadata: Metadata = {
   title: "Voice Call QA - AI Analysis",
   description:
     "Quality assurance tool for analyzing voice calls with AI-powered feedback",
-  generator: "v0.app",
   icons: {
     icon: [
       {

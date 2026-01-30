@@ -3,7 +3,7 @@
 import React from "react";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Upload,
   ArrowLeft,
@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { getAndClearUploadedFile } from "@/lib/uploaded-file-store";
+import { getCall } from "@/lib/call-store";
 import { persistRubricFromFile } from "@/lib/qa-rubrics";
 
 const INITIAL_TRANSCRIPT = [
@@ -199,6 +200,7 @@ const INITIAL_REPORT = {
 
 export default function QADashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<
@@ -508,6 +510,27 @@ export default function QADashboard() {
     setHighlightedLine(null);
   };
 
+  const loadCallFromReview = (call: {
+    transcript: { id: number; speaker: string; text: string; time: string }[];
+    durationSec: number;
+    file?: File;
+  }) => {
+    setFile(call.file ?? null);
+    setTranscript(call.transcript.length > 0 ? call.transcript : INITIAL_TRANSCRIPT);
+    setReport(INITIAL_REPORT);
+    setHasReportData(false);
+    setCallDuration(call.durationSec || 180);
+    setMomentsGood([]);
+    setMomentsBad([]);
+    setMomentsImprovement([]);
+    setMomentsUncertain([]);
+    setAnalysisError(null);
+    setHighlightedTimePosition(null);
+    setHighlightedMomentType(null);
+    setHighlightedLine(null);
+    if (call.transcript.length > 0) toast.success("Call loaded. Click Analyze to generate insights.");
+  };
+
   const transcribeOnly = async (selectedFile: File) => {
     if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
     setFile(selectedFile);
@@ -691,11 +714,17 @@ export default function QADashboard() {
     toast.success("Call loaded. Click Transcribe to generate a transcript.");
   };
 
-  // Consume file passed from /upload page after redirect (load only; no auto-transcribe)
+  // Consume file passed from /upload page or call from /reviews (callId)
   useEffect(() => {
+    const callId = searchParams.get("callId");
+    if (callId) {
+      const call = getCall(callId);
+      if (call) loadCallFromReview(call);
+      return;
+    }
     const fromUpload = getAndClearUploadedFile();
     if (fromUpload) loadFileOnly(fromUpload);
-  }, []);
+  }, [searchParams]);
 
   const handleRubricFileSelect = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -1474,8 +1503,9 @@ export default function QADashboard() {
               variant="outline"
               size="sm"
               onClick={() => file && transcribeOnly(file)}
-              disabled={!file || isLoading}
+              disabled={!file || isLoading || transcript.length > 0}
               className="h-8 shrink-0 gap-2"
+              title={transcript.length > 0 ? "Already transcribed" : undefined}
             >
               <FileText className="w-4 h-4 shrink-0" />
               Transcribe

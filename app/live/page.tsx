@@ -44,7 +44,8 @@ function cleanTokenText(s: string): string {
   return (s || "")
     .replace(/\<end\>/gi, " ")
     .replace(/\<fin\>/gi, " ")
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 type AiNotesByCategory = {

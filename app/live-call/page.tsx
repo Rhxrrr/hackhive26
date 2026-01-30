@@ -28,7 +28,8 @@ function cleanTokenText(s: string): string {
   return (s || "")
     .replace(/\<end\>/gi, " ")
     .replace(/\<fin\>/gi, " ")
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** If the tone API returns a long rate-limit message, shorten it for the UI. */
